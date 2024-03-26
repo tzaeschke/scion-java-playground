@@ -24,3 +24,7 @@ hs_err_pid*
 replay_pid*
 
 .idea
+cert.crt
+cert.csr
+cert.key
+http3-response.*
