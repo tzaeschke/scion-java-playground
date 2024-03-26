@@ -44,18 +44,34 @@ public class KwikClient {
                 .applicationProtocol(applicationProtocolId)
 
 //                .uri(URI.create("https://129.132.230.98:443"))
-                // https://github.com/netsec-ethz/scion-apps/blob/master/pkg/quicutil/single.go
-                // -> APLN "qs"
+//                // https://github.com/netsec-ethz/scion-apps/blob/master/pkg/quicutil/single.go
+//                // -> APLN "qs"
 //                .applicationProtocol("hq")
 //                .socketFactory(address -> new org.scion.socket.DatagramSocket())
 
                 .build();
 
         connection.connect();
+byte[] re = new byte[] {1, 48, 0, 0, 80, 18, 119, 119, 119, 46, 103, 111, 111, 103, 108, 101, 46, 99, 111, 109, 58, 52, 52, 51, -47, -41, -63, 95, 80, 20, 70, 108, 117, 112, 107, 101, 32, 104, 116, 116, 112, 51, 32, 108, 105, 98, 114, 97, 114, 121};
+String s = new String(re);
+System.out.println("Data: " + s);
+        //    GET /topology HTTP/1.1
+        //    User-Agent: Java/11.0.22
+        //    Host: 127.0.1.1:45678
+        //    Accept: text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2
+        //    Connection: keep-alive
+        String NL = System.lineSeparator();
+        StringBuilder sb = new StringBuilder();
+        //sb.append("GET / HTTP/1.1").append(NL);
+        sb.append("GET / HTTP/3").append(NL);
+        sb.append("User-Agent: Java/11.0.22").append(NL);
+        //sb.append("Host: 127.0.1.1:45678").append(NL);
+        sb.append("Accept: text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2").append(NL);
+        sb.append("Connection: keep-alive").append(NL);
 
         QuicStream quicStream = connection.createStream(true);
         OutputStream output = quicStream.getOutputStream();
-        output.write(42);
+        output.write(sb.toString().getBytes());
         output.close();
         InputStream input = quicStream.getInputStream();
         byte[] received = new byte[1000];

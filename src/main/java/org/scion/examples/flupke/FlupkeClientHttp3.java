@@ -20,6 +20,7 @@ import net.luminis.quic.log.Logger;
 import net.luminis.quic.log.SysOutLogger;
 
 import java.io.IOException;
+import java.net.DatagramSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -44,8 +45,9 @@ public class FlupkeClientHttp3 {
 
   public static void main(String[] args) throws IOException, InterruptedException {
 
-    args = new String[]{"https://ethz.ch"};
-    // args = new String[]{"https://www.google.com"};
+    //args = new String[]{"https://ethz.ch"};
+    //args = new String[]{"https://129.132.230.98:443"};
+    args = new String[]{"https://www.google.com"};
 
     if (args.length != 1) {
       System.err.println("Missing argument: server URL");
@@ -60,17 +62,22 @@ public class FlupkeClientHttp3 {
             .timeout(Duration.ofSeconds(10))
             .build();
 
+    System.out.println("Request: " + request.toString());
+
     // Easiest way to create a client with default configuration
-    HttpClient defaultClient = Http3Client.newHttpClient();
+//    HttpClient defaultClient = Http3Client.newHttpClient();
 
     // For non-default configuration, use the builder
     Logger stdoutLogger = new SysOutLogger();
     stdoutLogger.useRelativeTime(true);
     stdoutLogger.logPackets(true);
 
-    HttpClient client = ((Http3ClientBuilder) Http3Client.newBuilder())
+    HttpClient client =
+        ((Http3ClientBuilder) Http3Client.newBuilder())
             .logger(stdoutLogger)
             .connectTimeout(Duration.ofSeconds(3))
+            .socketFactory(ignored -> new DatagramSocket())
+            //  .socketFactory(ignored -> new org.scion.socket.DatagramSocket())
             .build();
 
     try {
