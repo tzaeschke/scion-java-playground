@@ -59,18 +59,12 @@ public class Sample {
 
         // OTHER TODO
         // - FIX SPURIOUS ERRORS!
-        // - Use same DAEMON property as SCION proto / Disable for testing!
-        // = Proper tests for /etc/scion/host reader & add /etc/hosts reader
         // - More (concurrent) API tests
-        // - Facility to flush DNS cache?
-
 
         // Flupke Http3Client.newBuilder().localAddress() is broken (does not compile).
 
 
-        System.setProperty(Constants.PROPERTY_BOOTSTRAP_NAPTR_NAME, "ethz.ch");
         args = new String[]{"https://ethz.ch"};
-        //args = new String[]{"https://129.132.230.98"};
         //args = new String[]{"https://google.ch"};
         if (args.length != 1) {
             System.err.println("Missing argument: server URL");
@@ -96,8 +90,9 @@ public class Sample {
         HttpClient client = ((Http3ClientBuilder) Http3Client.newBuilder())
                 .logger(stdoutLogger)
                 .connectTimeout(Duration.ofSeconds(3))
-                //.socketFactory(ignored -> new java.net.DatagramSocket())
-                .socketFactory(ignored -> new org.scion.socket.DatagramSocket(30041))
+                // TODO instead of socketFactory, introduce Quic(Client)ConnectionFactory?
+         //       .socketFactory(ignored -> new java.net.DatagramSocket())
+               .socketFactory(ignored -> new org.scion.socket.DatagramSocket(30041).assumeDestinationDispatcher())
        //         .localAddress(129.132.19.216")
                 //.localAddress(InetAddress.getByName("129.132.19.216"))
                 .build();

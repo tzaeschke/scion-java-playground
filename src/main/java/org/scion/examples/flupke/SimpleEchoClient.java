@@ -44,7 +44,7 @@ public class SimpleEchoClient {
     public static void main(String[] args) throws IOException {
         args = new String[]{"4443"};
 
-        System.setProperty(Constants.PROPERTY_DAEMON_HOST, "127.0.0.29");
+        System.setProperty(Constants.PROPERTY_DAEMON, "127.0.0.29:30255");
 
 
         SimpleEchoClient client = null;

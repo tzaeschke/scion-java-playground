@@ -144,6 +144,7 @@ public class FlupkeServerHttp3 {
   }
 
   public static void main(String[] args) throws Exception {
+    args = new String[]{"cert.crt", "cert.key", "4443"};
     if (args.length != 3 || ! Arrays.stream(args).limit(2).allMatch(a -> new File(a).exists())) {
       usageAndExit();
     }
