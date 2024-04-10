@@ -36,97 +36,100 @@ import org.scion.Constants;
 
 public class Sample {
 
-    public static void main(String[] args) throws IOException, InterruptedException {
-        // Create self signed certificate:
-        // - openssl genrsa -out cert.key 2048
-        // - openssl req -new -key cert.key -out cert.csr
-        // - openssl x509 -req -days 3650 -in cert.csr -signkey cert.key -out cert.crt
+  public static void main(String[] args) throws IOException, InterruptedException {
+    // Create self signed certificate:
+    // - openssl genrsa -out cert.key 2048
+    // - openssl req -new -key cert.key -out cert.csr
+    // - openssl x509 -req -days 3650 -in cert.csr -signkey cert.key -out cert.crt
 
-        // SCION notes:
-        // - Flupke (KWIK) may resolve the name to an IP. This is problematic, because with
-        //   an IP we can't do DNS lookup for remote ISD/AS.
-        //   Library MUST NOT perform DNS lookup. Well, Flupke doesn't, but the JDK does.
-        //   FIX: DatagramPacket has an address. Instead of using the packet's SocketAddress
-        //        we should get the hostname and do our own lookup!
-        //
-        // - We must provide the port 30041 (at least as long as we have dispatchers)
-        // - If we provide an IP that is in the local network, we should recognize this and
-        //   return the local ISD/AS. -> BUG
-        //   THIS is DANGEROUS! SCION allows two subnets to be connected directly -> there is no
-        //   guarantee that the IP is in the same subnet!
-        //   Solution: If we have a hostname we must assume different subnets (unless DNS lookup
-        //   says otherwise). Only if we don´t have a hostname we can assume the subnet to be local.
+    // SCION notes:
+    // - Flupke (KWIK) may resolve the name to an IP. This is problematic, because with
+    //   an IP we can't do DNS lookup for remote ISD/AS.
+    //   Library MUST NOT perform DNS lookup. Well, Flupke doesn't, but the JDK does.
+    //   FIX: DatagramPacket has an address. Instead of using the packet's SocketAddress
+    //        we should get the hostname and do our own lookup!
+    //
+    // - We must provide the port 30041 (at least as long as we have dispatchers)
+    // - If we provide an IP that is in the local network, we should recognize this and
+    //   return the local ISD/AS. -> BUG
+    //   THIS is DANGEROUS! SCION allows two subnets to be connected directly -> there is no
+    //   guarantee that the IP is in the same subnet!
+    //   Solution: If we have a hostname we must assume different subnets (unless DNS lookup
+    //   says otherwise). Only if we don´t have a hostname we can assume the subnet to be local.
+    //
+    // - Also, KWIK rightfully discard UDP packets that come from a different IP than what
+    //   is reported by a DNS A/AAAA lookup. However, SCION uses a different IP (TXT "scion=").
+    //   To prevent packets from being dropped, we have to reverse-map the IP address to A/AAAA.
+    //   We can do this using an internal map in the socket/channel.
 
-        // OTHER TODO
-        // - FIX SPURIOUS ERRORS!
-        // - More (concurrent) API tests
+    // OTHER TODO
+    // - FIX SPURIOUS ERRORS!
+    // - More (concurrent) API tests
 
-        // Flupke Http3Client.newBuilder().localAddress() is broken (does not compile).
-
-
-        args = new String[]{"https://ethz.ch"};
-        //args = new String[]{"https://google.ch"};
-        if (args.length != 1) {
-            System.err.println("Missing argument: server URL");
-            System.exit(1);
-        }
-
-        URI serverUrl = URI.create(args[0]);
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(serverUrl)
-                .header("User-Agent", "Flupke http3 library")
-                .timeout(Duration.ofSeconds(10))
-                .build();
-
-        // Easiest way to create a client with default configuration
-        // HttpClient defaultClient = Http3Client.newHttpClient();
-
-        // For non-default configuration, use the builder
-        Logger stdoutLogger = new SysOutLogger();
-        stdoutLogger.useRelativeTime(true);
-        stdoutLogger.logPackets(true);
-
-        HttpClient client = ((Http3ClientBuilder) Http3Client.newBuilder())
-                .logger(stdoutLogger)
-                .connectTimeout(Duration.ofSeconds(3))
-                // TODO instead of socketFactory, introduce Quic(Client)ConnectionFactory?
-         //       .socketFactory(ignored -> new java.net.DatagramSocket())
-               .socketFactory(ignored -> new org.scion.socket.DatagramSocket(30041).assumeDestinationDispatcher())
-       //         .localAddress(129.132.19.216")
-                //.localAddress(InetAddress.getByName("129.132.19.216"))
-                .build();
-
-        try {
-            long start = System.currentTimeMillis();
-            HttpResponse<String> httpResponse = client.send(request, HttpResponse.BodyHandlers.ofString());
-            long end = System.currentTimeMillis();
-            reportResult(httpResponse, end - start);
-
-            Thread.sleep(10000);
-        }
-        catch (IOException e) {
-            System.err.println("Request failed: " + e.getMessage());
-        }
-        catch (InterruptedException e) {
-            System.err.println("Request interrupted: " + e.getMessage());
-        }
+    args = new String[] {"https://ethz.ch"};
+    // args = new String[]{"https://www.google.ch"};
+    if (args.length != 1) {
+      System.err.println("Missing argument: server URL");
+      System.exit(1);
     }
 
-    private static void reportResult(HttpResponse<String> httpResponse, long duration) throws IOException {
-        System.out.println("Request completed in " + duration + " ms");
-        System.out.println("Got HTTP response " + httpResponse);
-        System.out.println("-   HTTP headers: ");
-        httpResponse.headers().map().forEach((k, v) -> System.out.println("--  " + k + "\t" + v));
-        long downloadSpeed = httpResponse.body().length() / duration;
-        System.out.println("-   HTTP body (" + httpResponse.body().length() + " bytes, " + downloadSpeed + " KB/s):");
-        if (httpResponse.body().length() > 10 * 1024) {
-            String outputFile = "http3-response.txt";
-            Files.write(Paths.get(outputFile), httpResponse.body().getBytes());
-            System.out.println("Response body written to file: " + outputFile);
-        }
-        else {
-            System.out.println(httpResponse.body());
-        }
+    URI serverUrl = URI.create(args[0]);
+
+    HttpRequest request =
+        HttpRequest.newBuilder()
+            .uri(serverUrl)
+            .header("User-Agent", "Flupke http3 library")
+            .timeout(Duration.ofSeconds(10))
+            .build();
+
+    // For non-default configuration, use the builder
+    Logger stdoutLogger = new SysOutLogger();
+    stdoutLogger.useRelativeTime(true);
+    stdoutLogger.logPackets(true);
+
+    HttpClient client =
+        Http3Client.newBuilder()
+            .logger(stdoutLogger)
+            .connectTimeout(Duration.ofSeconds(3))
+            // TODO instead of socketFactory, introduce Quic(Client)ConnectionFactory?
+            //       .socketFactory(ignored -> new java.net.DatagramSocket())
+            .socketFactory(
+                ignored ->
+                    new org.scion.socket.DatagramSocket(30041)
+                        .setRemoteDispatcher(true)
+                        .setIpReverseMapping(true))
+            .build();
+
+    try {
+      long start = System.currentTimeMillis();
+      HttpResponse<String> httpResponse =
+          client.send(request, HttpResponse.BodyHandlers.ofString());
+      long end = System.currentTimeMillis();
+      reportResult(httpResponse, end - start);
+
+      Thread.sleep(10000);
+    } catch (IOException e) {
+      System.err.println("Request failed: " + e.getMessage());
+    } catch (InterruptedException e) {
+      System.err.println("Request interrupted: " + e.getMessage());
     }
+  }
+
+  private static void reportResult(HttpResponse<String> httpResponse, long duration)
+      throws IOException {
+    System.out.println("Request completed in " + duration + " ms");
+    System.out.println("Got HTTP response " + httpResponse);
+    System.out.println("-   HTTP headers: ");
+    httpResponse.headers().map().forEach((k, v) -> System.out.println("--  " + k + "\t" + v));
+    long downloadSpeed = httpResponse.body().length() / duration;
+    System.out.println(
+        "-   HTTP body (" + httpResponse.body().length() + " bytes, " + downloadSpeed + " KB/s):");
+    if (httpResponse.body().length() > 10 * 1024) {
+      String outputFile = "http3-response.html";
+      Files.write(Paths.get(outputFile), httpResponse.body().getBytes());
+      System.out.println("Response body written to file: " + outputFile);
+    } else {
+      System.out.println(httpResponse.body());
+    }
+  }
 }
