@@ -19,20 +19,35 @@
 package org.scion.examples.flupke;
 
 import java.io.IOException;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.URI;
+import java.net.*;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.List;
+
 import net.luminis.http3.Http3Client;
 import net.luminis.http3.Http3ClientBuilder;
+import net.luminis.quic.DatagramSocketFactory;
+import net.luminis.quic.QuicClientConnection;
+import net.luminis.quic.QuicConnection;
+import net.luminis.quic.QuicSessionTicket;
+import net.luminis.quic.core.ClientConnectionConfig;
+import net.luminis.quic.core.QuicClientConnectionImpl;
+import net.luminis.quic.core.Version;
 import net.luminis.quic.log.Logger;
 import net.luminis.quic.log.SysOutLogger;
-import org.scion.Constants;
+import net.luminis.tls.TlsConstants;
+import org.scion.jpan.Constants;
+import org.scion.jpan.Scion;
+import org.scion.jpan.ScionException;
+
+import static net.luminis.http3.core.Http3ClientConnection.DEFAULT_HTTP3_PORT;
 
 public class Sample {
 
@@ -87,17 +102,45 @@ public class Sample {
     stdoutLogger.useRelativeTime(true);
     stdoutLogger.logPackets(true);
 
+//    ProxySelector proxySelector = new ProxySelector() {
+//      @Override
+//      public List<Proxy> select(URI uri) {
+//        System.out.println("STUB: ProxySelector.select()");
+//          try {
+//            InetAddress host = Scion.defaultService().getScionAddress(uri.getHost()).getInetAddress();
+//            int port = uri.getPort();
+//            if (port <= 0) {
+//              port = DEFAULT_HTTP3_PORT;
+//            }
+//            // TODO
+//            port = 30041;
+//            InetSocketAddress address = new InetSocketAddress(host, port);
+//            Proxy.Type type = Proxy.Type.HTTP;
+//            Proxy proxy = new Proxy(type, address);
+//            System.out.println("STUB: ProxySelector.select() - 2");
+//            return List.of(proxy);
+//          } catch (ScionException e) {
+//              throw new RuntimeException(e);
+//          }
+//      }
+//
+//      @Override
+//      public void connectFailed(URI uri, SocketAddress socketAddress, IOException e) {
+//        System.out.println("STUB: ProxySelector.connectFailed()");
+//      }
+//    };
+
     HttpClient client =
         Http3Client.newBuilder()
             .logger(stdoutLogger)
             .connectTimeout(Duration.ofSeconds(3))
+            //.proxy(proxySelector)
             // TODO instead of socketFactory, introduce Quic(Client)ConnectionFactory?
             //       .socketFactory(ignored -> new java.net.DatagramSocket())
-            .socketFactory(
-                ignored ->
-                    new org.scion.socket.DatagramSocket(30041)
-                        .setRemoteDispatcher(true)
-                        .setIpReverseMapping(true))
+//            .socketFactory(
+//                ignored ->
+//                    new org.scion.jpan.socket.DatagramSocket(30041).setRemoteDispatcher(true))
+            .connectionBuilderFactory(ScionConnectionBuilder::new)
             .build();
 
     try {
@@ -130,6 +173,34 @@ public class Sample {
       System.out.println("Response body written to file: " + outputFile);
     } else {
       System.out.println(httpResponse.body());
+    }
+  }
+
+  private static class ScionConnectionBuilder extends QuicClientConnectionImpl.ExtendedBuilder {
+
+    ScionConnectionBuilder() {
+      super();
+    }
+
+    @Override
+    public QuicClientConnectionImpl build() throws SocketException, UnknownHostException {
+        super.socketFactory(
+                ignored ->
+                        new org.scion.jpan.socket.DatagramSocket(30041).setRemoteDispatcher(true));
+        super.addressResolver(hostName -> {
+          System.out.println("STUB: ProxySelector.select()");
+          try {
+            InetAddress address = Scion.defaultService().getScionAddress(hostName).getInetAddress();
+            System.out.println("STUB: ProxySelector.select() - 2 " + address);
+            return address;
+          } catch (ScionException e) {
+            // SCION resolution does not work, try norma resolution
+          }
+          System.out.println("STUB: ProxySelector.select() - 3 " + InetAddress.getByName(hostName));
+          return InetAddress.getByName(hostName);
+        }
+        );
+        return super.build();
     }
   }
 }

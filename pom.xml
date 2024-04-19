@@ -96,7 +96,7 @@
         <dependency>
             <groupId>tech.kwik</groupId>
             <artifactId>kwik</artifactId>
-            <version>0.8.10</version>
+            <version>v0.8.9-dirty</version>
         </dependency>
 
         <dependency>
@@ -108,7 +108,7 @@
 
         <dependency>
             <groupId>org.scion</groupId>
-            <artifactId>client</artifactId>
+            <artifactId>jpan</artifactId>
             <version>0.1.1-ALPHA-SNAPSHOT</version>
         </dependency>
     </dependencies>

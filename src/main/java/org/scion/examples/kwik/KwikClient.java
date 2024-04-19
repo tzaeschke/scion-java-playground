@@ -63,7 +63,6 @@ System.out.println("Data: " + s);
         String NL = System.lineSeparator();
         StringBuilder sb = new StringBuilder();
         //sb.append("GET / HTTP/1.1").append(NL);
-        sb.append("GET / HTTP/3").append(NL);
         sb.append("User-Agent: Java/11.0.22").append(NL);
         //sb.append("Host: 127.0.1.1:45678").append(NL);
         sb.append("Accept: text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2").append(NL);

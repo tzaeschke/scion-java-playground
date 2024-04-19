@@ -24,8 +24,8 @@ import java.nio.charset.StandardCharsets;
 import net.luminis.quic.QuicClientConnection;
 import net.luminis.quic.QuicStream;
 import net.luminis.quic.log.SysOutLogger;
-import org.scion.Constants;
-import org.scion.socket.DatagramSocket;
+import org.scion.jpan.Constants;
+import org.scion.jpan.socket.DatagramSocket;
 
 /**
  * A sample echo client that runs a very simple echo protocol on top of QUIC.

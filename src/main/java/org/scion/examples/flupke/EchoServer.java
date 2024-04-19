@@ -30,8 +30,8 @@ import net.luminis.quic.server.ApplicationProtocolConnection;
 import net.luminis.quic.server.ApplicationProtocolConnectionFactory;
 import net.luminis.quic.server.ServerConnectionConfig;
 import net.luminis.quic.server.ServerConnector;
-import org.scion.Constants;
-import org.scion.socket.DatagramSocket;
+import org.scion.jpan.Constants;
+import org.scion.jpan.socket.DatagramSocket;
 
 /**
  * A sample server that runs a very simple echo protocol on top of QUIC.
