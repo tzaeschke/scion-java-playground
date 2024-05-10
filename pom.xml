@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.scion</groupId>
-    <artifactId>client-examples</artifactId>
+    <artifactId>jpan-examples</artifactId>
     <version>0.0.1-ALPHA-SNAPSHOT</version>
 
     <properties>
@@ -109,7 +109,7 @@
         <dependency>
             <groupId>org.scion</groupId>
             <artifactId>jpan</artifactId>
-            <version>0.1.1-ALPHA-SNAPSHOT</version>
+            <version>0.1.2-SNAPSHOT</version>
         </dependency>
     </dependencies>
 
