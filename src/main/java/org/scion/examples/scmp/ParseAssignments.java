@@ -91,12 +91,6 @@ public class ParseAssignments {
     }
   }
 
-  private static void check(boolean pass, String msg) {
-    if (!pass) {
-      throw new IllegalArgumentException(msg);
-    }
-  }
-
   public static void main(String[] args) throws URISyntaxException {
     ParseAssignments pa = new ParseAssignments();
     pa.init();

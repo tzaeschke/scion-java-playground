@@ -88,16 +88,20 @@ public class Echo {
     try (ScmpChannel scmpChannel = Scmp.createChannel(path, localPort)) {
       // printPath(scmpChannel);
       List<Scmp.TracerouteMessage> results = scmpChannel.sendTracerouteRequest();
-      if (!results.isEmpty()) {
-        Scmp.TracerouteMessage msg = results.get(results.size() - 1);
-        String millis = String.format("%.4f", msg.getNanoSeconds() / (double) 1_000_000);
-        int nHops = path.getInterfacesList().size() / 2;
-        println(" nPaths=" + nPaths + " nHops=" + nHops + " time=" + millis + "ms");
-        if (msg.isTimedOut()) {
-          nTimeout++;
-        } else {
-          nSuccess++;
-        }
+      if (results.isEmpty()) {
+        println(" -> local AS, no timing available");
+        nSuccess++;
+        return;
+      }
+
+      Scmp.TracerouteMessage msg = results.get(results.size() - 1);
+      String millis = String.format("%.4f", msg.getNanoSeconds() / (double) 1_000_000);
+      int nHops = path.getInterfacesList().size() / 2;
+      println(" nPaths=" + nPaths + " nHops=" + nHops + " time=" + millis + "ms");
+      if (msg.isTimedOut()) {
+        nTimeout++;
+      } else {
+        nSuccess++;
       }
     } catch (IOException e) {
       println("ERROR: " + e.getMessage());
