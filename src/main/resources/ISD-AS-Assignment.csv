@@ -1,0 +1,128 @@
+                                            
+                                            
+                                            
+                                            
+           ISD Members                      
+           64: Switzer                      
+             ISD-AS      Name      Comment     Roles   
+           64-559     SWITCH CH             Core       
+           64-3303    Swisscom CH           Core, Issui
+           64-6730    Sunrise CH            Core       
+           64-8300    Swisscom La           
+           64-8883    UBS Switzer           
+           64-12350   VTX CH                Core       
+           64-13030   Init7 CH              Core       
+           64-15623   Cyberlink             Core       
+           64-24951   EveryWare C           
+           64-196722  SNB CH                
+           64-2:0:0   Anapaya Zur           
+           64-2:0:2   SIX IntegraEnvironment
+           64-2:0:3   ZKB CH                
+           64-2:0:4   Mobile Conn           
+           64-2:0:5   Mobile Conn           
+           64-2:0:9   ETH Zurich            
+           64-2:0:c   Swiss Natio           
+           64-2:0:13  Anapaya CON           Core, Issui
+           64-2:0:14  Eidgenössis           
+           64-2:0:17  Axpo WZ Sys           
+           64-2:0:1a  Anapaya Zur           
+           64-2:0:1b  Sunrise Tes           
+           64-2:0:1d  Swisscom CH           
+           64-2:0:1f  Sunrise Tes           
+           64-2:0:21  Sunrise Tes           
+           64-2:0:22  Sunrise Amb           
+           64-2:0:23  InterCloud            Core       
+           64-2:0:27  Cyberlink C           
+           64-2:0:28  Cyberlink C           
+           64-2:0:29  VBS        Used for pe
+           64-2:0:2a  CyberLink  SBAS PoP   
+           64-2:0:2b  Armasuisse            
+           64-2:0:2c  Armasuisse            
+           64-2:0:2d  Armasuisse            
+           64-2:0:30  AWK Group A           
+           64-2:0:34  BNC        BNC Lab EDG
+           64-2:0:36  RUAG                  
+           64-2:0:37  UBS                   
+           64-2:0:38  UBS        Assigned, n
+           64-2:0:3a  Mysten     Mysten Labs
+           64-2:0:41  RUAG                  
+           64-2:0:44  VTX        EDGE Testin
+           64-2:0:45  VTX        EDGE Testin
+           64-2:0:46  Swisscom   EDGE Testin
+           64-2:0:4c  AWS PoC Ana           
+           64-2:0:4e  Infoguard P           
+           64-2:0:4f  Infoguard H           
+           64-2:0:53  Everyware L           
+           64-2:0:54  Everyware L           
+           64-2:0:56  Armasuisse            Core       
+           64-2:0:5d  BIS Innovat           
+           64-2:0:62  Infoguard P           
+           65: Europe                       
+             ISD-AS      Name      Comment     Roles   
+           65-57965   Internation           
+           65-2:0:f   Anapaya CON           Core, Votin
+           65-2:0:19  Anapaya Fra           
+           65-2:0:20  Telindus              Core       
+           65-2:0:24  InterCloud            Core, Issui
+           65-2:0:25  InterCloud            
+           65-2:0:42  Mysten     Mysten Labs
+           65-2:0:4b  Martincoit            
+           65-2:0:50  Mainstreami           
+           65-2:0:51  Intercloud            Core       
+           65-2:0:58  Mysten Labs           
+           65-2:0:5a  Mysten Labs           
+           65-2:0:5e  BIS Innovat           
+           66: Asia                         
+             ISD-AS      Name      Comment     Roles   
+           66-3786    LG Uplus Co           Core       
+           66-2:0:1   SNB Singapo           
+           66-2:0:10  Anapaya CON           Core, Votin
+           66-2:0:11  Anapaya CON           Core       
+           66-2:0:15  Schweizeris           
+           66-2:0:16  Panmunjeom            
+           66-2:0:18  SEC Singapo           
+           66-2:0:47  Mysten     Connected t
+           66-2:0:55  Intercloud            Core       
+           66-2:0:59  Mysten Labs           
+           66-2:0:5f  BIS Innovat           
+           66-2:0:60  BIS Innovat           
+           67: North A                      
+             ISD-AS      Name      Comment     Roles   
+           67-2:0:1c  Swisscom US           Core, Votin
+           67-2:0:1e  Swisscom Ou           
+           67-2:0:26  InterCloud            Core, Issui
+           67-2:0:43  Mysten     Mysten Labs
+           67-2:0:4b  Martincoit            
+           67-2:0:57  Mysten Labs           
+           71: Global                       
+             ISD-AS      Name      Comment     Roles   
+           71-88      Princeton U           
+           71-225     University            
+           71-559     SWITCH Educ           
+           71-1140    SIDN Labs             
+           71-2546    NCSR Demokr           
+           71-4158    City Univer           
+           71-20965   GEANT                 Core, Issui
+           71-2:0:35  BRIDGES    Core in Edu
+           71-2:0:3b  KREONET SeoKorean nati
+           71-2:0:3c  KREONET HonKorean nati
+           71-2:0:3d  KREONET SinKorean nati
+           71-2:0:3e  KREONET AmsKorean nati
+           71-2:0:3f  KREONET ChiKorean nati
+           71-2:0:40  KREONET SeaKorean nati
+           71-2:0:48  Equinix    Educational
+           71-2:0:49  CybExer Tec           
+           71-2:0:4a  Ovgu       Educational
+           71-2:0:4d  KREONET Seo           
+           71-2:0:5c  Universidad           
+           71-2:0:61  National Un           
+           72: HIN Ver                      
+             ISD-AS      Name      Comment     Roles   
+           72-559     SWITCH HVR            Core, Issui
+           72-3303    Swisscom HV           Core       
+           72-6730    Sunrise HVR           Core       
+           72-15623   Cyberlink H           
+           72-2:0:13  Anapaya Zur           
+           72-2:0:2e  HIN Platfor           
+           72-2:0:2f  HIN Platfor           
+           72-2:0:33  HIN HVR CA            Issuing    
