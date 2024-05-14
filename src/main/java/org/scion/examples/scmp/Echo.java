@@ -76,7 +76,7 @@ public class Echo {
         nNoPathFound++;
         return;
       }
-      path = paths.get(0);
+      path = PathPolicy.MIN_HOPS.filter(paths);
     } catch (ScionRuntimeException e) {
       println("ERROR: " + e.getMessage());
       nError++;
