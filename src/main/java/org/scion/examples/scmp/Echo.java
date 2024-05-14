@@ -21,7 +21,9 @@ import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class Echo {
   private static final boolean PRINT = true;
@@ -32,6 +34,9 @@ public class Echo {
   private int nError = 0;
   private int nTimeout = 0;
   private int nNoPathFound = 0;
+
+  private static final Set<Long> listedAs = new HashSet<>();
+  private static final Set<Long> seenAs = new HashSet<>();
 
 
   public Echo(int localPort) {
@@ -49,15 +54,24 @@ public class Echo {
     for (ParseAssignments.HostEntry e : ParseAssignments.getList()) {
       System.out.print(ScionUtil.toStringIA(e.getIsdAs()) + " " + e.getName() + "   ");
       demo.runDemo(e.getIsdAs());
+      listedAs.add(e.getIsdAs());
+    }
+
+    int nSeenButNotListed = 0;
+    for (Long isdAs : seenAs) {
+      if (!listedAs.contains(isdAs)) {
+        nSeenButNotListed++;
+      }
     }
 
     println("");
     println("Stats:");
-    println(" all      = " + demo.nTried);
-    println(" success  = " + demo.nSuccess);
-    println(" no path  = " + demo.nNoPathFound);
-    println(" timeout  = " + demo.nTimeout);
-    println(" error    = " + demo.nError);
+    println(" all        = " + demo.nTried);
+    println(" success    = " + demo.nSuccess);
+    println(" no path    = " + demo.nNoPathFound);
+    println(" timeout    = " + demo.nTimeout);
+    println(" error      = " + demo.nError);
+    println(" not listed = " + nSeenButNotListed);
   }
 
   private void runDemo(long destinationIA) throws IOException {
@@ -67,7 +81,7 @@ public class Echo {
     InetSocketAddress destinationAddress =
         new InetSocketAddress(Inet4Address.getByAddress(new byte[] {1, 2, 3, 4}), 12345);
     RequestPath path;
-    int nPaths = 0;
+    int nPaths;
     try {
       List<RequestPath> paths = service.getPaths(destinationIA, destinationAddress);
       if (paths.isEmpty()) {
@@ -92,6 +106,10 @@ public class Echo {
         println(" -> local AS, no timing available");
         nSuccess++;
         return;
+      }
+
+      for (Scmp.TracerouteMessage msg : results) {
+        seenAs.add(msg.getIsdAs());
       }
 
       Scmp.TracerouteMessage msg = results.get(results.size() - 1);
