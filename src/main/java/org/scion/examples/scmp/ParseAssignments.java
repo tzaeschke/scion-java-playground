@@ -62,14 +62,14 @@ public class ParseAssignments {
       LOG.info("{} not found.", fileName);
       return;
     }
-      Path path;
-      try {
-          path = Paths.get(r.toURI());
-      } catch (URISyntaxException e) {
-          throw new RuntimeException(e);
-      }
+    Path path;
+    try {
+      path = Paths.get(r.toURI());
+    } catch (URISyntaxException e) {
+      throw new RuntimeException(e);
+    }
 
-      try (Stream<String> lines = Files.lines(path)) {
+    try (Stream<String> lines = Files.lines(path)) {
       lines.forEach((line) -> parseLine(line, path));
     } catch (IOException e) {
       throw new ScionRuntimeException(e);
@@ -82,11 +82,9 @@ public class ParseAssignments {
       if (s.isEmpty() || s.startsWith("#")) {
         return;
       }
-      String[] lineParts = s.split("\\s+");
-      check(lineParts.length >= 2, "Expected ` `");
-
-      long isdAs = ScionUtil.parseIA(lineParts[0]);
-      String name = lineParts[1];
+      String[] lineParts = s.split(",");
+      long isdAs = ScionUtil.parseIA(lineParts[1].substring(1, lineParts[1].length() - 1));
+      String name = lineParts[2];
       entries.add(new HostEntry(isdAs, name));
     } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
       LOG.info("ERROR parsing file {}: error=\"{}\" line=\"{}\"", path, e.getMessage(), line);

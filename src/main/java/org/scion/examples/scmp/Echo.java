@@ -67,6 +67,7 @@ public class Echo {
     InetSocketAddress destinationAddress =
         new InetSocketAddress(Inet4Address.getByAddress(new byte[] {1, 2, 3, 4}), 12345);
     RequestPath path;
+    int nPaths = 0;
     try {
       List<RequestPath> paths = service.getPaths(destinationIA, destinationAddress);
       if (paths.isEmpty()) {
@@ -76,6 +77,7 @@ public class Echo {
         nNoPathFound++;
         return;
       }
+      nPaths = paths.size();
       path = PathPolicy.MIN_HOPS.filter(paths);
     } catch (ScionRuntimeException e) {
       println("ERROR: " + e.getMessage());
@@ -89,7 +91,8 @@ public class Echo {
       if (!results.isEmpty()) {
         Scmp.TracerouteMessage msg = results.get(results.size() - 1);
         String millis = String.format("%.4f", msg.getNanoSeconds() / (double) 1_000_000);
-        println(" " + millis + "ms");
+        int nHops = path.getInterfacesList().size() / 2;
+        println(" nPaths=" + nPaths + " nHops=" + nHops + " time=" + millis + "ms");
         if (msg.isTimedOut()) {
           nTimeout++;
         } else {
