@@ -14,13 +14,17 @@
 
 package org.scion.examples.scmp;
 
+import com.google.common.util.concurrent.AtomicDouble;
+import com.zaxxer.ping.IcmpPinger;
+import com.zaxxer.ping.PingResponseHandler;
+import com.zaxxer.ping.PingTarget;
+import org.jetbrains.annotations.NotNull;
 import org.scion.jpan.*;
+import org.scion.jpan.internal.PathRawParser;
 
 import java.io.IOException;
-import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -29,28 +33,31 @@ public class Echo {
   private static final boolean PRINT = true;
   private final int localPort;
 
-  private int nTried = 0;
-  private int nSuccess = 0;
-  private int nError = 0;
-  private int nTimeout = 0;
-  private int nNoPathFound = 0;
+  private int nAsTried = 0;
+  private int nAsSuccess = 0;
+  private int nAsError = 0;
+  private int nAsTimeout = 0;
+  private int nAsNoPathFound = 0;
+
+  private int nPathTried = 0;
+  private int nPathSuccess = 0;
+  private int nPathTimeout = 0;
+
+  private int nIcmpTried = 0;
+  private int nIcmpSuccess = 0;
+  private int nIcmpError = 0;
+  private int nIcmpTimeout = 0;
 
   private static final Set<Long> listedAs = new HashSet<>();
   private static final Set<Long> seenAs = new HashSet<>();
-
 
   public Echo(int localPort) {
     this.localPort = localPort;
   }
 
-  public static void main(String[] args) throws IOException {
+  public static void main(String[] args) throws IOException, InterruptedException {
     // Local port must be 30041 for networks that expect a dispatcher
     Echo demo = new Echo(30041);
-    //        // demo.runDemo(DemoConstants.iaOVGU, serviceIP);
-    //        ScionAddress sa = Scion.defaultService().getScionAddress("ethz.ch");
-    //        demo.runDemo(sa.getIsdAs(), new InetSocketAddress(sa.getInetAddress(), 30041));
-    //        // demo.runDemo(DemoConstants.iaGEANT, serviceIP);
-
     for (ParseAssignments.HostEntry e : ParseAssignments.getList()) {
       System.out.print(ScionUtil.toStringIA(e.getIsdAs()) + " " + e.getName() + "   ");
       demo.runDemo(e.getIsdAs());
@@ -65,111 +72,146 @@ public class Echo {
     }
 
     println("");
-    println("Stats:");
-    println(" all        = " + demo.nTried);
-    println(" success    = " + demo.nSuccess);
-    println(" no path    = " + demo.nNoPathFound);
-    println(" timeout    = " + demo.nTimeout);
-    println(" error      = " + demo.nError);
+    println("AS Stats:");
+    println(" all        = " + demo.nAsTried);
+    println(" success    = " + demo.nAsSuccess);
+    println(" no path    = " + demo.nAsNoPathFound);
+    println(" timeout    = " + demo.nAsTimeout);
+    println(" error      = " + demo.nAsError);
     println(" not listed = " + nSeenButNotListed);
+    println("Path Stats:");
+    println(" all        = " + demo.nPathTried);
+    println(" success    = " + demo.nPathSuccess);
+    println(" timeout    = " + demo.nPathTimeout);
+    println("ICMP Stats:");
+    println(" all        = " + demo.nIcmpTried);
+    println(" success    = " + demo.nIcmpSuccess);
+    println(" timeout    = " + demo.nIcmpTimeout);
+    println(" error      = " + demo.nIcmpError);
   }
 
   private void runDemo(long destinationIA) throws IOException {
-    nTried++;
+    nAsTried++;
     ScionService service = Scion.defaultService();
     // Dummy address. The traceroute will contact the control service IP instead.
     InetSocketAddress destinationAddress =
-        new InetSocketAddress(Inet4Address.getByAddress(new byte[] {1, 2, 3, 4}), 12345);
-    RequestPath path;
+        new InetSocketAddress(InetAddress.getByAddress(new byte[] {1, 2, 3, 4}), 12345);
     int nPaths;
+    Scmp.TracerouteMessage msg;
     try {
       List<RequestPath> paths = service.getPaths(destinationIA, destinationAddress);
       if (paths.isEmpty()) {
         String src = ScionUtil.toStringIA(service.getLocalIsdAs());
         String dst = ScionUtil.toStringIA(destinationIA);
         println("No path found from " + src + " to " + dst);
-        nNoPathFound++;
+        nAsNoPathFound++;
         return;
       }
       nPaths = paths.size();
-      path = PathPolicy.MIN_HOPS.filter(paths);
+      msg = pingSCMP(paths);
     } catch (ScionRuntimeException e) {
       println("ERROR: " + e.getMessage());
-      nError++;
+      nAsError++;
       return;
     }
 
-    try (ScmpChannel scmpChannel = Scmp.createChannel(path, localPort)) {
-      // printPath(scmpChannel);
-      List<Scmp.TracerouteMessage> results = scmpChannel.sendTracerouteRequest();
-      if (results.isEmpty()) {
-        println(" -> local AS, no timing available");
-        nSuccess++;
-        return;
-      }
+    if (msg == null) {
+      return;
+    }
 
-      for (Scmp.TracerouteMessage msg : results) {
-        seenAs.add(msg.getIsdAs());
-      }
+    // ICMP ping
+    String icmpMs = pingICMP(msg.getPath().getRemoteAddress());
 
-      Scmp.TracerouteMessage msg = results.get(results.size() - 1);
-      String millis = String.format("%.4f", msg.getNanoSeconds() / (double) 1_000_000);
-      int nHops = path.getInterfacesList().size() / 2;
-      println(" nPaths=" + nPaths + " nHops=" + nHops + " time=" + millis + "ms");
-      if (msg.isTimedOut()) {
-        nTimeout++;
-      } else {
-        nSuccess++;
-      }
-    } catch (IOException e) {
-      println("ERROR: " + e.getMessage());
-      nError++;
+    // output
+    String millis = String.format("%.4f", msg.getNanoSeconds() / (double) 1_000_000);
+    int nHops = PathRawParser.create(msg.getPath().getRawPath()).getHopCount();
+    String addr = msg.getPath().getRemoteAddress().getHostAddress();
+    String out = "  " + addr + "  nPaths=" + nPaths + "  nHops=" + nHops;
+    println(out + "  time=" + millis + "ms" + "  ICMP=" + icmpMs);
+    if (msg.isTimedOut()) {
+      nAsTimeout++;
+    } else {
+      nAsSuccess++;
     }
   }
 
-  private void runDemo(long dstIA, InetSocketAddress dstAddress) throws IOException {
-    List<RequestPath> paths = Scion.defaultService().getPaths(dstIA, dstAddress);
-    if (paths.isEmpty()) {
-      System.out.println(" No path found!");
-      return;
-    }
-    RequestPath path = paths.get(0);
-    ByteBuffer data = ByteBuffer.allocate(0);
-
-    //        println("Listening on port " + localPort + " ...");
-    //        try (ScionDatagramChannel channel = ScionDatagramChannel.open()) {
-    //            channel.connect(path);
-    //            println("Resolved local address: ");
-    //            println("  " + channel.getLocalAddress().getAddress().getHostAddress());
-    //        }
-
-    try (ScmpChannel scmpChannel = Scmp.createChannel(path, localPort)) {
-      //            printPath(scmpChannel);
-      for (int i = 0; i < 1; i++) {
-        Scmp.EchoMessage msg = scmpChannel.sendEchoRequest(i, data);
-        //                if (i == 0) {
-        //                    printHeader(dstIA, dstAddress, data, msg);
-        //                }
-        String millis = String.format("%.3f", msg.getNanoSeconds() / (double) 1_000_000);
-        String echoMsgStr = msg.getSizeReceived() + " bytes from ";
-        // TODO get actual address from response
-        InetAddress addr = msg.getPath().getRemoteAddress();
-        echoMsgStr += ScionUtil.toStringIA(dstIA) + "," + addr.getHostAddress();
-        echoMsgStr += ": scmp_seq=" + msg.getSequenceNumber();
-        if (msg.isTimedOut()) {
-          echoMsgStr += " Timed out after";
+  private Scmp.TracerouteMessage pingSCMP(List<RequestPath> paths) {
+    Scmp.TracerouteMessage best = null;
+    try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
+      for (RequestPath path : paths) {
+        nPathTried++;
+        List<Scmp.TracerouteMessage> results = scmpChannel.sendTracerouteRequest(path);
+        if (results.isEmpty()) {
+          println(" -> local AS, no timing available");
+          nPathSuccess++;
+          return null;
         }
-        echoMsgStr += " time=" + millis + "ms";
-        println(echoMsgStr);
-        try {
-          Thread.sleep(1000);
-        } catch (InterruptedException e) {
-          throw new RuntimeException(e);
+
+        for (Scmp.TracerouteMessage msg : results) {
+          seenAs.add(msg.getIsdAs());
+        }
+
+        Scmp.TracerouteMessage msg = results.get(results.size() - 1);
+        if (msg.isTimedOut()) {
+          nPathTimeout++;
+          return msg;
+        }
+
+        nPathSuccess++;
+
+        if (best == null || msg.getNanoSeconds() < best.getNanoSeconds()) {
+          best = msg;
         }
       }
+      return best;
     } catch (IOException e) {
-      System.out.println("  Ping faild to " + dstAddress + " with " + e.getMessage());
+      println("ERROR: " + e.getMessage());
+      nAsError++;
+      return null;
     }
+  }
+
+  private String pingICMP(InetAddress address) {
+    AtomicDouble seconds = new AtomicDouble(-2);
+    PingResponseHandler handler =
+        new PingResponseHandler() {
+          @Override
+          public void onResponse(@NotNull PingTarget pingTarget, double v, int i, int i1) {
+            seconds.set(v);
+          }
+
+          @Override
+          public void onTimeout(@NotNull PingTarget pingTarget) {
+            seconds.set(-1);
+          }
+        };
+    IcmpPinger pinger = new IcmpPinger(handler);
+    PingTarget target = new PingTarget(address);
+    Thread t = new Thread(pinger::runSelector);
+    t.start();
+    nIcmpTried++;
+
+    pinger.ping(target);
+    while (pinger.isPendingWork()) {
+      try {
+        Thread.sleep(500);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException(e);
+      }
+    }
+    pinger.stopSelector();
+    if (seconds.get() >= 0) {
+      nIcmpSuccess++;
+      double rounded = Math.round(seconds.get() * 10000.) / 10000.;
+      return rounded * 1000 + "ms"; // milliseconds
+    }
+    if (seconds.get() == -1) {
+      nIcmpTimeout++;
+      return "TIMEOUT";
+    }
+    nIcmpError++;
+    return "ERROR";
   }
 
   private void printPath(ScmpChannel channel) {
