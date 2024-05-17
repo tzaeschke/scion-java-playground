@@ -137,6 +137,7 @@ public class Echo {
 
   private Scmp.TracerouteMessage pingSCMP(List<RequestPath> paths) {
     Scmp.TracerouteMessage best = null;
+    RequestPath bestPath = null;
     try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
       for (RequestPath path : paths) {
         nPathTried++;
@@ -161,8 +162,10 @@ public class Echo {
 
         if (best == null || msg.getNanoSeconds() < best.getNanoSeconds()) {
           best = msg;
+          bestPath = path;
         }
       }
+      println("  " + ScionUtil.toStringPath(bestPath));
       return best;
     } catch (IOException e) {
       println("ERROR: " + e.getMessage());
@@ -214,18 +217,16 @@ public class Echo {
     return "ERROR";
   }
 
-  private void printPath(ScmpChannel channel) {
+  private void printPath(RequestPath path) {
     String nl = System.lineSeparator();
-    StringBuilder sb = new StringBuilder();
-    //    sb.append("Actual local address:").append(nl);
+      //    sb.append("Actual local address:").append(nl);
     //    sb.append("
     // ").append(channel.getLocalAddress().getAddress().getHostAddress()).append(nl);
-    RequestPath path = channel.getConnectionPath();
-    sb.append("Using path:").append(nl);
-    sb.append("  Hops: ").append(ScionUtil.toStringPath(path));
-    sb.append(" MTU: ").append(path.getMtu());
-    sb.append(" NextHop: ").append(path.getInterface().getAddress()).append(nl);
-    println(sb.toString());
+      String sb = "Using path:" + nl +
+              "  Hops: " + ScionUtil.toStringPath(path) +
+              " MTU: " + path.getMtu() +
+              " NextHop: " + path.getInterface().getAddress(); // .append(nl);
+      println(sb);
   }
 
   private static void println(String msg) {
