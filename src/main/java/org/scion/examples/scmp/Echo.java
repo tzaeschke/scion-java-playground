@@ -25,6 +25,7 @@ import org.scion.jpan.internal.PathRawParser;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -51,14 +52,27 @@ public class Echo {
   private static final Set<Long> listedAs = new HashSet<>();
   private static final Set<Long> seenAs = new HashSet<>();
 
+  private enum Policy {
+    FASTEST_TR,
+    SHORTEST_TR,
+    FASTEST_ECHO,
+    SHORTEST_ECHO
+  }
+
+  private static final Policy POLICY = Policy.SHORTEST_TR;
+  private static final boolean SHOW_PATH = true;
+
   public Echo(int localPort) {
     this.localPort = localPort;
   }
 
-  public static void main(String[] args) throws IOException, InterruptedException {
+  public static void main(String[] args) throws IOException {
     // Local port must be 30041 for networks that expect a dispatcher
     Echo demo = new Echo(30041);
     for (ParseAssignments.HostEntry e : ParseAssignments.getList()) {
+      //      if (!e.getName().startsWith("\"ETH")) {
+      //        continue;
+      //      }
       System.out.print(ScionUtil.toStringIA(e.getIsdAs()) + " " + e.getName() + "   ");
       demo.runDemo(e.getIsdAs());
       listedAs.add(e.getIsdAs());
@@ -97,7 +111,7 @@ public class Echo {
     InetSocketAddress destinationAddress =
         new InetSocketAddress(InetAddress.getByAddress(new byte[] {1, 2, 3, 4}), 12345);
     int nPaths;
-    Scmp.TracerouteMessage msg;
+    Scmp.TimedMessage msg;
     try {
       List<RequestPath> paths = service.getPaths(destinationIA, destinationAddress);
       if (paths.isEmpty()) {
@@ -108,7 +122,7 @@ public class Echo {
         return;
       }
       nPaths = paths.size();
-      msg = pingSCMP(paths);
+      msg = findPaths(paths);
     } catch (ScionRuntimeException e) {
       println("ERROR: " + e.getMessage());
       nAsError++;
@@ -135,7 +149,85 @@ public class Echo {
     }
   }
 
-  private Scmp.TracerouteMessage pingSCMP(List<RequestPath> paths) {
+  private Scmp.TimedMessage findPaths(List<RequestPath> paths) {
+    switch (POLICY) {
+      case FASTEST_TR:
+        return findFastestTR(paths);
+      case SHORTEST_TR:
+        return findShortestTR(paths);
+      case SHORTEST_ECHO:
+        return findShortestEcho(paths);
+      default:
+        throw new UnsupportedOperationException();
+    }
+  }
+
+  private Scmp.EchoMessage findShortestEcho(List<RequestPath> paths) {
+    RequestPath path = PathPolicy.MIN_HOPS.filter(paths);
+    ByteBuffer bb = ByteBuffer.allocate(0);
+    int id = 0;
+    try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
+      nPathTried++;
+      Scmp.EchoMessage msg = scmpChannel.sendEchoRequest(path, id, bb);
+      if (msg == null) {
+        println(" -> local AS, no timing available");
+        nPathSuccess++;
+        return null;
+      }
+
+      if (msg.isTimedOut()) {
+        nPathTimeout++;
+        return msg;
+      }
+
+      nPathSuccess++;
+
+      if (SHOW_PATH) {
+        print("  " + ScionUtil.toStringPath(path));
+      }
+      return msg;
+    } catch (IOException e) {
+      println("ERROR: " + e.getMessage());
+      nAsError++;
+      return null;
+    }
+  }
+
+  private Scmp.TracerouteMessage findShortestTR(List<RequestPath> paths) {
+    RequestPath path = PathPolicy.MIN_HOPS.filter(paths);
+    try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
+      nPathTried++;
+      List<Scmp.TracerouteMessage> results = scmpChannel.sendTracerouteRequest(path);
+      if (results.isEmpty()) {
+        println(" -> local AS, no timing available");
+        nPathSuccess++;
+        return null;
+      }
+
+      for (Scmp.TracerouteMessage msg : results) {
+        seenAs.add(msg.getIsdAs());
+      }
+
+      Scmp.TracerouteMessage msg = results.get(results.size() - 1);
+      if (msg.isTimedOut()) {
+        nPathTimeout++;
+        return msg;
+      }
+
+      nPathSuccess++;
+
+      if (SHOW_PATH) {
+        print("  " + ScionUtil.toStringPath(path));
+      }
+      return msg;
+    } catch (IOException e) {
+      println("ERROR: " + e.getMessage());
+      nAsError++;
+      return null;
+    }
+  }
+
+  private Scmp.TracerouteMessage findFastestTR(List<RequestPath> paths) {
     Scmp.TracerouteMessage best = null;
     RequestPath bestPath = null;
     try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
@@ -165,7 +257,9 @@ public class Echo {
           bestPath = path;
         }
       }
-      println("  " + ScionUtil.toStringPath(bestPath));
+      if (SHOW_PATH) {
+        print("  " + ScionUtil.toStringPath(bestPath));
+      }
       return best;
     } catch (IOException e) {
       println("ERROR: " + e.getMessage());
@@ -219,14 +313,25 @@ public class Echo {
 
   private void printPath(RequestPath path) {
     String nl = System.lineSeparator();
-      //    sb.append("Actual local address:").append(nl);
+    //    sb.append("Actual local address:").append(nl);
     //    sb.append("
     // ").append(channel.getLocalAddress().getAddress().getHostAddress()).append(nl);
-      String sb = "Using path:" + nl +
-              "  Hops: " + ScionUtil.toStringPath(path) +
-              " MTU: " + path.getMtu() +
-              " NextHop: " + path.getInterface().getAddress(); // .append(nl);
-      println(sb);
+    String sb =
+        "Using path:"
+            + nl
+            + "  Hops: "
+            + ScionUtil.toStringPath(path)
+            + " MTU: "
+            + path.getMtu()
+            + " NextHop: "
+            + path.getInterface().getAddress(); // .append(nl);
+    println(sb);
+  }
+
+  private static void print(String msg) {
+    if (PRINT) {
+      System.out.print(msg);
+    }
   }
 
   private static void println(String msg) {
