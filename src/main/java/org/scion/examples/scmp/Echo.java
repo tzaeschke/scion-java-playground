@@ -30,6 +30,23 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * This program takes a list of ISD/AS addresses and tries to measure latency to all of them. It
+ * will also attempt an ICMP ping for comparison.<br>
+ * The list is derived from <a
+ * href="https://docs.anapaya.net/en/latest/resources/isd-as-assignments/">here</a> and is locally
+ * stored in ISD-AS-Assignments.csv, see {@link ParseAssignments}.java.
+ *
+ * <p>There are several options for executing measurements (see "Policy"):<br>
+ * - SCMP traceroute vs SCMP echo<br>
+ * - Fastest vs shortest
+ *
+ * <p>Shortest: Report results on the path with the fewest hops. The number of hops can be evaluated
+ * locally, so this is very fast.
+ *
+ * <p>Fastest: Report the path with the lowest latency. This takes much longer because it will try
+ * all available paths before it can report on the best path.
+ */
 public class Echo {
   private static final boolean PRINT = true;
   private final int localPort;
@@ -53,9 +70,13 @@ public class Echo {
   private static final Set<Long> seenAs = new HashSet<>();
 
   private enum Policy {
+    /** Fastest path using SCMP traceroute */
     FASTEST_TR,
+    /** Shortest path using SCMP traceroute */
     SHORTEST_TR,
+    /** Fastest path using SCMP echo */
     FASTEST_ECHO,
+    /** Fastest path using SCMP echo */
     SHORTEST_ECHO
   }
 
@@ -78,6 +99,7 @@ public class Echo {
       listedAs.add(e.getIsdAs());
     }
 
+    // Try to identify ASes that occur in any paths but that are not on the public list.
     int nSeenButNotListed = 0;
     for (Long isdAs : seenAs) {
       if (!listedAs.contains(isdAs)) {
