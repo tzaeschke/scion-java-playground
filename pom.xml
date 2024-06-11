@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.scion</groupId>
@@ -51,16 +53,16 @@
     </developers>
 
     <scm>
-        <url>https://github.com/netsec-ethz/scion-java-client</url>
-        <connection>scm:git:git@github.com:netsec-ethz/scion-java-client.git</connection>
-        <developerConnection>scm:git:git@github.com:netsec-ethz/scion-java-client.git
+        <url>https://github.com/tzaeschke/scion-java-playground</url>
+        <connection>scm:git:git@github.com:tzaeschke/scion-java-playground.git</connection>
+        <developerConnection>scm:git:git@github.com:tzaeschke/scion-java-playground.git
         </developerConnection>
         <tag>HEAD</tag>
     </scm>
 
     <issueManagement>
         <system>github</system>
-        <url>https://github.com/netsec-ethz/scion-java-client/issues</url>
+        <url>https://github.com/tzaeschke/scion-java-playground/issues</url>
     </issueManagement>
 
     <!-- mvn versions:display-dependency-updates -->
@@ -102,8 +104,8 @@
         <dependency>
             <groupId>tech.kwik</groupId>
             <artifactId>flupke</artifactId>
-<!--            <version>0.5.3</version>-->
-            <version>91684b4-dirty</version>
+            <version>0.5.3</version>
+            <!--            <version>91684b4-dirty</version>-->
         </dependency>
 
         <dependency>
