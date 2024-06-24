@@ -104,14 +104,14 @@
         <dependency>
             <groupId>tech.kwik</groupId>
             <artifactId>flupke</artifactId>
-            <version>0.5.3</version>
-            <!--            <version>91684b4-dirty</version>-->
+            <!--            <version>0.5.3</version>-->
+ k           <version>91684b4-dirty</version>
         </dependency>
 
         <dependency>
             <groupId>org.scion</groupId>
             <artifactId>jpan</artifactId>
-            <version>0.1.2-SNAPSHOT</version>
+            <version>0.2.0</version>
         </dependency>
 
         <dependency>
