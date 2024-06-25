@@ -90,7 +90,9 @@ public class Echo {
   public static void main(String[] args) throws IOException {
     // Local port must be 30041 for networks that expect a dispatcher
     Echo demo = new Echo(30041);
-    for (ParseAssignments.HostEntry e : ParseAssignments.getList()) {
+    // List<ParseAssignments.HostEntry> list = ParseAssignments.getList();
+    List<ParseAssignments.HostEntry> list = DownloadAssignments.getList();
+    for (ParseAssignments.HostEntry e : list) {
       //      if (!e.getName().startsWith("\"ETH")) {
       //        continue;
       //      }
