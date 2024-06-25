@@ -291,6 +291,18 @@ public class Echo {
   }
 
   private String pingICMP(InetAddress address) {
+    String ipStr = address.getHostAddress();
+    if (ipStr.startsWith("127.") || ipStr.startsWith("192.168.") || ipStr.startsWith("10.")) {
+      return "N/A";
+    }
+    if (ipStr.startsWith("172.")) {
+      String[] split = ipStr.split("\\.");
+      int part2 = Integer.parseInt(split[1]);
+      if (part2 >= 16 && part2 < 31) {
+        return "N/A";
+      }
+    }
+
     AtomicDouble seconds = new AtomicDouble(-2);
     PingResponseHandler handler =
         new PingResponseHandler() {
