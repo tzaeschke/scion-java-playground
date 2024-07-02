@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -68,6 +69,7 @@ public class Echo {
 
   private static final Set<Long> listedAs = new HashSet<>();
   private static final Set<Long> seenAs = new HashSet<>();
+  private static final List<Result> results = new ArrayList<>();
 
   private enum Policy {
     /** Fastest path using SCMP traceroute */
@@ -96,8 +98,8 @@ public class Echo {
       //      if (!e.getName().startsWith("\"ETH")) {
       //        continue;
       //      }
-      System.out.print(ScionUtil.toStringIA(e.getIsdAs()) + " " + e.getName() + "   ");
-      demo.runDemo(e.getIsdAs());
+      print(ScionUtil.toStringIA(e.getIsdAs()) + " " + e.getName() + "   ");
+      demo.runDemo(e);
       listedAs.add(e.getIsdAs());
     }
 
@@ -108,6 +110,14 @@ public class Echo {
         nSeenButNotListed++;
       }
     }
+
+    // max:
+    Result maxPing = results.stream().max((o1, o2) -> (int) (o1.pingMs - o2.pingMs)).get();
+    Result maxHops = results.stream().max((o1, o2) -> o1.nHops - o2.nHops).get();
+    Result maxPaths = results.stream().max((o1, o2) -> o1.nPaths - o2.nPaths).get();
+    println("Max hops:  " + maxHops);
+    println("Max ping:  " + maxPing);
+    println("Max paths: " + maxPaths);
 
     println("");
     println("AS Stats:");
@@ -128,7 +138,7 @@ public class Echo {
     println(" error      = " + demo.nIcmpError);
   }
 
-  private void runDemo(long destinationIA) throws IOException {
+  private void runDemo(ParseAssignments.HostEntry remote) throws IOException {
     nAsTried++;
     ScionService service = Scion.defaultService();
     // Dummy address. The traceroute will contact the control service IP instead.
@@ -136,22 +146,27 @@ public class Echo {
         new InetSocketAddress(InetAddress.getByAddress(new byte[] {1, 2, 3, 4}), 12345);
     int nPaths;
     Scmp.TimedMessage msg;
+    Ref<Path> bestPath = Ref.empty();
     try {
-      List<Path> paths = service.getPaths(destinationIA, destinationAddress);
+      List<Path> paths = service.getPaths(remote.getIsdAs(), destinationAddress);
       if (paths.isEmpty()) {
         String src = ScionUtil.toStringIA(service.getLocalIsdAs());
-        String dst = ScionUtil.toStringIA(destinationIA);
+        String dst = ScionUtil.toStringIA(remote.getIsdAs());
         println("No path found from " + src + " to " + dst);
         nAsNoPathFound++;
+        results.add(new Result(remote, ResultState.NO_PATH));
         return;
       }
       nPaths = paths.size();
-      msg = findPaths(paths);
+      msg = findPaths(paths, bestPath);
     } catch (ScionRuntimeException e) {
       println("ERROR: " + e.getMessage());
       nAsError++;
+      results.add(new Result(remote, ResultState.ERROR));
       return;
     }
+    Result result = new Result(remote, msg, bestPath.get(), nPaths);
+    results.add(result);
 
     if (msg == null) {
       return;
@@ -159,6 +174,7 @@ public class Echo {
 
     // ICMP ping
     String icmpMs = pingICMP(msg.getPath().getRemoteAddress());
+    result.setICMP(icmpMs);
 
     // output
     String millis = String.format("%.4f", msg.getNanoSeconds() / (double) 1_000_000);
@@ -173,12 +189,12 @@ public class Echo {
     }
   }
 
-  private Scmp.TimedMessage findPaths(List<Path> paths) {
+  private Scmp.TimedMessage findPaths(List<Path> paths, Ref<Path> bestOut) {
     switch (POLICY) {
       case FASTEST_TR:
-        return findFastestTR(paths);
+        return findFastestTR(paths, bestOut);
       case SHORTEST_TR:
-        return findShortestTR(paths);
+        return findShortestTR(paths, bestOut);
       case SHORTEST_ECHO:
         return findShortestEcho(paths);
       default:
@@ -217,8 +233,9 @@ public class Echo {
     }
   }
 
-  private Scmp.TracerouteMessage findShortestTR(List<Path> paths) {
+  private Scmp.TracerouteMessage findShortestTR(List<Path> paths, Ref<Path> refBest) {
     Path path = PathPolicy.MIN_HOPS.filter(paths);
+    refBest.set(path);
     try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
       nPathTried++;
       List<Scmp.TracerouteMessage> results = scmpChannel.sendTracerouteRequest(path);
@@ -251,7 +268,7 @@ public class Echo {
     }
   }
 
-  private Scmp.TracerouteMessage findFastestTR(List<Path> paths) {
+  private Scmp.TracerouteMessage findFastestTR(List<Path> paths, Ref<Path> refBest) {
     Scmp.TracerouteMessage best = null;
     Path bestPath = null;
     try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
@@ -279,6 +296,7 @@ public class Echo {
         if (best == null || msg.getNanoSeconds() < best.getNanoSeconds()) {
           best = msg;
           bestPath = path;
+          refBest.set(path);
         }
       }
       if (SHOW_PATH) {
@@ -373,6 +391,99 @@ public class Echo {
   private static void println(String msg) {
     if (PRINT) {
       System.out.println(msg);
+    }
+  }
+
+  enum ResultState {
+    NOT_DONE,
+    DONE,
+    ERROR,
+    NO_PATH,
+    TIME_OUT,
+    LOCAL_AS
+  }
+
+  private static class Result {
+    private final long isdAs;
+    private final String name;
+    private int nHops;
+    private int nPaths;
+    private double pingMs;
+    private Path path;
+    private String remoteIP;
+    private String icmp;
+    private ResultState state = ResultState.NOT_DONE;
+
+    private Result(ParseAssignments.HostEntry e) {
+      this.isdAs = e.getIsdAs();
+      this.name = e.getName();
+    }
+
+    Result(ParseAssignments.HostEntry e, ResultState state) {
+      this(e);
+      this.state = state;
+    }
+
+    public Result(ParseAssignments.HostEntry e, Scmp.TimedMessage msg, Path request, int nPaths) {
+      this(e);
+      if (msg == null) {
+        state = ResultState.LOCAL_AS;
+        return;
+      }
+      this.nPaths = nPaths;
+      this.path = request;
+      nHops = PathRawParser.create(request.getRawPath()).getHopCount();
+      remoteIP = msg.getPath().getRemoteAddress().getHostAddress();
+      if (msg.isTimedOut()) {
+        state = ResultState.TIME_OUT;
+      } else {
+        pingMs = msg.getNanoSeconds() / (double) 1_000_000;
+        state = ResultState.DONE;
+      }
+    }
+
+    public long getIsdAs() {
+      return isdAs;
+    }
+
+    public String getName() {
+      return name;
+    }
+
+    public void setICMP(String icmp) {
+      this.icmp = icmp;
+    }
+
+    @Override
+    public String toString() {
+      String out = ScionUtil.toStringIA(isdAs) + " " + name;
+      out += "   " + ScionUtil.toStringPath(path.getMetadata());
+      out += "  " + remoteIP + "  nPaths=" + nPaths + "  nHops=" + nHops;
+      return out + "  time=" + pingMs + "ms" + "  ICMP=" + icmp;
+    }
+  }
+
+  private static class Ref<T> {
+    public T t;
+
+    private Ref(T t) {
+      this.t = t;
+    }
+
+    public static <T> Ref<T> empty() {
+      return new Ref<>(null);
+    }
+
+    public static <T> Ref<T> of(T t) {
+      return new Ref<>(t);
+    }
+
+    public T get() {
+      return t;
+    }
+
+    public void set(T t) {
+      this.t = t;
     }
   }
 }
