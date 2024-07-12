@@ -98,7 +98,7 @@ public class Echo {
       //      if (!e.getName().startsWith("\"ETH")) {
       //        continue;
       //      }
-      print(ScionUtil.toStringIA(e.getIsdAs()) + " " + e.getName() + "   ");
+      print(ScionUtil.toStringIA(e.getIsdAs()) + " \"" + e.getName() + "\"  ");
       demo.runDemo(e);
       listedAs.add(e.getIsdAs());
     }
@@ -115,9 +115,11 @@ public class Echo {
     Result maxPing = results.stream().max((o1, o2) -> (int) (o1.pingMs - o2.pingMs)).get();
     Result maxHops = results.stream().max((o1, o2) -> o1.nHops - o2.nHops).get();
     Result maxPaths = results.stream().max((o1, o2) -> o1.nPaths - o2.nPaths).get();
-    println("Max hops:  " + maxHops);
-    println("Max ping:  " + maxPing);
-    println("Max paths: " + maxPaths);
+
+    println("");
+    println("Max hops =  " + maxHops.nHops + ": " + maxHops);
+    println("Max ping =  " + round(maxPing.pingMs, 2) + ": " + maxPing);
+    println("Max paths = " + maxPaths.nPaths + ": " + maxPaths);
 
     println("");
     println("AS Stats:");
@@ -152,7 +154,7 @@ public class Echo {
       if (paths.isEmpty()) {
         String src = ScionUtil.toStringIA(service.getLocalIsdAs());
         String dst = ScionUtil.toStringIA(remote.getIsdAs());
-        println("No path found from " + src + " to " + dst);
+        println("WARNING: No path found from " + src + " to " + dst);
         nAsNoPathFound++;
         results.add(new Result(remote, ResultState.NO_PATH));
         return;
@@ -177,11 +179,15 @@ public class Echo {
     result.setICMP(icmpMs);
 
     // output
-    String millis = String.format("%.4f", msg.getNanoSeconds() / (double) 1_000_000);
+    double millis = round(msg.getNanoSeconds() / (double) 1_000_000, 2);
     int nHops = PathRawParser.create(msg.getPath().getRawPath()).getHopCount();
     String addr = msg.getPath().getRemoteAddress().getHostAddress();
-    String out = "  " + addr + "  nPaths=" + nPaths + "  nHops=" + nHops;
-    println(out + "  time=" + millis + "ms" + "  ICMP=" + icmpMs);
+    String out = addr + "  nPaths=" + nPaths + "  nHops=" + nHops;
+    out += "  time=" + millis + "ms" + "  ICMP=" + icmpMs;
+    if (SHOW_PATH) {
+      out += "  " + ScionUtil.toStringPath(bestPath.get().getMetadata());
+    }
+    println(out);
     if (msg.isTimedOut()) {
       nAsTimeout++;
     } else {
@@ -221,10 +227,6 @@ public class Echo {
       }
 
       nPathSuccess++;
-
-      if (SHOW_PATH) {
-        print("  " + ScionUtil.toStringPath(path.getMetadata()));
-      }
       return msg;
     } catch (IOException e) {
       println("ERROR: " + e.getMessage());
@@ -256,10 +258,6 @@ public class Echo {
       }
 
       nPathSuccess++;
-
-      if (SHOW_PATH) {
-        print("  " + ScionUtil.toStringPath(path.getMetadata()));
-      }
       return msg;
     } catch (IOException e) {
       println("ERROR: " + e.getMessage());
@@ -270,7 +268,6 @@ public class Echo {
 
   private Scmp.TracerouteMessage findFastestTR(List<Path> paths, Ref<Path> refBest) {
     Scmp.TracerouteMessage best = null;
-    Path bestPath = null;
     try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
       for (Path path : paths) {
         nPathTried++;
@@ -295,12 +292,8 @@ public class Echo {
 
         if (best == null || msg.getNanoSeconds() < best.getNanoSeconds()) {
           best = msg;
-          bestPath = path;
           refBest.set(path);
         }
-      }
-      if (SHOW_PATH) {
-        print("  " + ScionUtil.toStringPath(bestPath.getMetadata()));
       }
       return best;
     } catch (IOException e) {
@@ -354,8 +347,10 @@ public class Echo {
     pinger.stopSelector();
     if (seconds.get() >= 0) {
       nIcmpSuccess++;
-      double rounded = Math.round(seconds.get() * 10000.) / 10000.;
-      return rounded * 1000 + "ms"; // milliseconds
+//      double rounded = Math.round(seconds.get() * 10000.) / 10000.;
+//      return rounded * 1000 + "ms"; // milliseconds
+      double ms = seconds.get() * 1000;
+      return round(ms, 2) + "ms"; // milliseconds
     }
     if (seconds.get() == -1) {
       nIcmpTimeout++;
@@ -392,6 +387,11 @@ public class Echo {
     if (PRINT) {
       System.out.println(msg);
     }
+  }
+
+  private static double round(double d, int nDigits) {
+    double div = Math.pow(10, nDigits);
+    return Math.round(d*div)/div;
   }
 
   enum ResultState {
@@ -459,7 +459,7 @@ public class Echo {
       String out = ScionUtil.toStringIA(isdAs) + " " + name;
       out += "   " + ScionUtil.toStringPath(path.getMetadata());
       out += "  " + remoteIP + "  nPaths=" + nPaths + "  nHops=" + nHops;
-      return out + "  time=" + pingMs + "ms" + "  ICMP=" + icmp;
+      return out + "  time=" + round(pingMs, 2) + "ms" + "  ICMP=" + icmp;
     }
   }
 
