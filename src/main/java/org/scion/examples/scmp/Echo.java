@@ -117,9 +117,9 @@ public class Echo {
     Result maxPaths = results.stream().max((o1, o2) -> o1.nPaths - o2.nPaths).get();
 
     println("");
-    println("Max hops =  " + maxHops.nHops + ": " + maxHops);
-    println("Max ping =  " + round(maxPing.pingMs, 2) + ": " + maxPing);
-    println("Max paths = " + maxPaths.nPaths + ": " + maxPaths);
+    println("Max hops  = " + maxHops.nHops + ":    " + maxHops);
+    println("Max ping  = " + round(maxPing.pingMs, 2) + "ms:    " + maxPing);
+    println("Max paths = " + maxPaths.nPaths + ":    " + maxPaths);
 
     println("");
     println("AS Stats:");
@@ -218,6 +218,7 @@ public class Echo {
       if (msg == null) {
         println(" -> local AS, no timing available");
         nPathSuccess++;
+        nAsSuccess++;
         return null;
       }
 
@@ -244,6 +245,7 @@ public class Echo {
       if (results.isEmpty()) {
         println(" -> local AS, no timing available");
         nPathSuccess++;
+        nAsSuccess++;
         return null;
       }
 
@@ -275,6 +277,7 @@ public class Echo {
         if (results.isEmpty()) {
           println(" -> local AS, no timing available");
           nPathSuccess++;
+          nAsSuccess++;
           return null;
         }
 
