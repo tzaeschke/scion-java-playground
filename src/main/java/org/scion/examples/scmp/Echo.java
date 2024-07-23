@@ -350,8 +350,6 @@ public class Echo {
     pinger.stopSelector();
     if (seconds.get() >= 0) {
       nIcmpSuccess++;
-//      double rounded = Math.round(seconds.get() * 10000.) / 10000.;
-//      return rounded * 1000 + "ms"; // milliseconds
       double ms = seconds.get() * 1000;
       return round(ms, 2) + "ms"; // milliseconds
     }
