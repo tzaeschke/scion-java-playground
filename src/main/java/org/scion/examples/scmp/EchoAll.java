@@ -240,7 +240,7 @@ public class EchoAll {
     try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
       nPathTried++;
       List<Scmp.TracerouteMessage> messages = scmpChannel.sendTracerouteRequest(path);
-      if (results.isEmpty()) {
+      if (messages.isEmpty()) {
         println(" -> local AS, no timing available");
         nPathSuccess++;
         nAsSuccess++;
@@ -272,7 +272,7 @@ public class EchoAll {
       for (Path path : paths) {
         nPathTried++;
         List<Scmp.TracerouteMessage> messages = scmpChannel.sendTracerouteRequest(path);
-        if (results.isEmpty()) {
+        if (messages.isEmpty()) {
           println(" -> local AS, no timing available");
           nPathSuccess++;
           nAsSuccess++;

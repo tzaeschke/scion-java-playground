@@ -16,7 +16,6 @@ package org.scion.examples.scmp;
 
 import com.google.common.util.concurrent.AtomicDouble;
 import com.google.gson.Gson;
-import com.google.gson.JsonElement;
 import com.zaxxer.ping.IcmpPinger;
 import com.zaxxer.ping.PingResponseHandler;
 import com.zaxxer.ping.PingTarget;
@@ -27,9 +26,7 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 import org.scion.jpan.*;
 import org.scion.jpan.internal.PathRawParser;
@@ -106,9 +103,16 @@ public class EchoRepeat {
     EchoRepeat demo = new EchoRepeat(30041);
     List<ParseAssignments.HostEntry> list = ParseAssignments.getList(FILE_INPUT);
     // List<ParseAssignments.HostEntry> list = DownloadAssignments.getList();
-    for (ParseAssignments.HostEntry e : list) {
-      print(ScionUtil.toStringIA(e.getIsdAs()) + " \"" + e.getName() + "\"  ");
-      demo.runDemo(e);
+    for (int i = 0; i < config.roundRepeatCnt; i++) {
+      Instant start = Instant.now();
+      for (ParseAssignments.HostEntry e : list) {
+        print(ScionUtil.toStringIA(e.getIsdAs()) + " " + e.getName() + "  ");
+        demo.runDemo(e);
+      }
+      long usedMillis = Instant.now().toEpochMilli() - start.toEpochMilli();
+      if (usedMillis < config.roundDelaySec * 1000L) {
+        sleep(config.roundDelaySec * 1000L - usedMillis);
+      }
     }
     fileWriter.close();
 
@@ -268,21 +272,22 @@ public class EchoRepeat {
   private Scmp.TracerouteMessage findFastestTR(List<Path> paths, Ref<Path> refBest) {
     Scmp.TracerouteMessage best = null;
     try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
-      for (Path path : paths) {
+      for (int i = 0; i < paths.size() && i < config.maxPathsPerDestination; i++) {
+        Path path = paths.get(i);
         nPathTried++;
-        Record record = Record.startMeasurement(path);
+        Record rec = Record.startMeasurement(path);
         for (int attempt = 0; attempt < config.attemptRepeatCnt; attempt++) {
           List<Scmp.TracerouteMessage> messages = scmpChannel.sendTracerouteRequest(path);
           if (messages.isEmpty()) {
             println(" -> local AS, no timing available");
             nPathSuccess++;
             nAsSuccess++;
-            record.finishMeasurement();
+            rec.finishMeasurement();
             return null;
           }
 
           Scmp.TracerouteMessage msg = messages.get(messages.size() - 1);
-          record.registerAttempt(msg);
+          rec.registerAttempt(msg);
           if (msg.isTimedOut()) {
             nPathTimeout++;
             return msg;
@@ -296,7 +301,7 @@ public class EchoRepeat {
           }
           sleep(config.attemptDelayMs);
         }
-        record.finishMeasurement();
+        rec.finishMeasurement();
       }
       return best;
     } catch (IOException e) {
@@ -307,6 +312,9 @@ public class EchoRepeat {
   }
 
   private String pingICMP(InetAddress address) {
+    if (!config.tryICMP) {
+      return "OFF";
+    }
     String ipStr = address.getHostAddress();
     if (ipStr.startsWith("127.") || ipStr.startsWith("192.168.") || ipStr.startsWith("10.")) {
       return "N/A";
@@ -356,7 +364,7 @@ public class EchoRepeat {
     return "ERROR";
   }
 
-  private static void sleep(int millis) {
+  private static void sleep(long millis) {
     try {
       Thread.sleep(millis);
     } catch (InterruptedException e) {
@@ -570,6 +578,8 @@ public class EchoRepeat {
     int attemptDelayMs = 100;
     int roundRepeatCnt = 144; // 1 day
     int roundDelaySec = 10 * 60; // 10 minutes
+    int maxPathsPerDestination = 20;
+    boolean tryICMP = false;
 
     static Config read(String path) {
       Gson gson = new Gson();
