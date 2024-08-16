@@ -48,7 +48,7 @@ import java.util.Set;
  * <p>Fastest: Report the path with the lowest latency. This takes much longer because it will try
  * all available paths before it can report on the best path.
  */
-public class Echo {
+public class EchoAll {
   private static final boolean PRINT = true;
   private final int localPort;
 
@@ -85,19 +85,16 @@ public class Echo {
   private static final Policy POLICY = Policy.SHORTEST_TR;
   private static final boolean SHOW_PATH = true;
 
-  public Echo(int localPort) {
+  public EchoAll(int localPort) {
     this.localPort = localPort;
   }
 
   public static void main(String[] args) throws IOException {
     // Local port must be 30041 for networks that expect a dispatcher
-    Echo demo = new Echo(30041);
+    EchoAll demo = new EchoAll(30041);
     // List<ParseAssignments.HostEntry> list = ParseAssignments.getList();
     List<ParseAssignments.HostEntry> list = DownloadAssignments.getList();
     for (ParseAssignments.HostEntry e : list) {
-      //      if (!e.getName().startsWith("\"ETH")) {
-      //        continue;
-      //      }
       print(ScionUtil.toStringIA(e.getIsdAs()) + " \"" + e.getName() + "\"  ");
       demo.runDemo(e);
       listedAs.add(e.getIsdAs());
@@ -202,14 +199,15 @@ public class Echo {
       case SHORTEST_TR:
         return findShortestTR(paths, bestOut);
       case SHORTEST_ECHO:
-        return findShortestEcho(paths);
+        return findShortestEcho(paths, bestOut);
       default:
         throw new UnsupportedOperationException();
     }
   }
 
-  private Scmp.EchoMessage findShortestEcho(List<Path> paths) {
+  private Scmp.EchoMessage findShortestEcho(List<Path> paths, Ref<Path> refBest) {
     Path path = PathPolicy.MIN_HOPS.filter(paths);
+    refBest.set(path);
     ByteBuffer bb = ByteBuffer.allocate(0);
     int id = 0;
     try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
