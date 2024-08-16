@@ -31,7 +31,6 @@ import java.util.stream.Stream;
 
 public class ParseAssignments {
   private static final Logger LOG = LoggerFactory.getLogger(HostsFileParser.class);
-  private static final String fileName = "ISD-AS-Assignment.csv";
 
   // We use hostName/addressString as key.
   private final List<HostEntry> entries = new ArrayList<>();
@@ -54,20 +53,10 @@ public class ParseAssignments {
     }
   }
 
-  public ParseAssignments() {}
+  private ParseAssignments() {}
 
-  public void init() {
-    URL r = getClass().getClassLoader().getResource(fileName);
-    if (r == null) {
-      LOG.info("{} not found.", fileName);
-      return;
-    }
-    Path path;
-    try {
-      path = Paths.get(r.toURI());
-    } catch (URISyntaxException e) {
-      throw new RuntimeException(e);
-    }
+  public void read(String fileName) {
+    Path path = Paths.get(fileName);
 
     try (Stream<String> lines = Files.lines(path)) {
       lines.forEach((line) -> parseLine(line, path));
@@ -83,27 +72,17 @@ public class ParseAssignments {
         return;
       }
       String[] lineParts = s.split(",");
-      long isdAs = ScionUtil.parseIA(lineParts[1].substring(1, lineParts[1].length() - 1));
-      String name = lineParts[2];
+      long isdAs = ScionUtil.parseIA(lineParts[0].substring(1, lineParts[0].length() - 1));
+      String name = lineParts[1];
       entries.add(new HostEntry(isdAs, name));
     } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
       LOG.info("ERROR parsing file {}: error=\"{}\" line=\"{}\"", path, e.getMessage(), line);
     }
   }
 
-  public static void main(String[] args) throws URISyntaxException {
+  public static List<HostEntry> getList(String fileName) {
     ParseAssignments pa = new ParseAssignments();
-    pa.init();
-
-    System.out.println("Found entries: " + pa.entries.size());
-    for (HostEntry e : pa.entries) {
-      System.out.println(ScionUtil.toStringIA(e.isdAs) + "    " + e.getName());
-    }
-  }
-
-  public static List<HostEntry> getList() {
-    ParseAssignments pa = new ParseAssignments();
-    pa.init();
+    pa.read(fileName);
     return pa.entries;
   }
 }

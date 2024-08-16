@@ -15,10 +15,13 @@
 package org.scion.examples.scmp;
 
 import com.google.common.util.concurrent.AtomicDouble;
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.zaxxer.ping.IcmpPinger;
 import com.zaxxer.ping.PingResponseHandler;
 import com.zaxxer.ping.PingTarget;
-import java.io.IOException;
+
+import java.io.*;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -66,9 +69,9 @@ public class EchoRepeat {
   private int nIcmpError = 0;
   private int nIcmpTimeout = 0;
 
-  private static final Set<Long> listedAs = new HashSet<>();
-  private static final Set<Long> seenAs = new HashSet<>();
+  private static Config config;
   private static final List<Result> results = new ArrayList<>();
+  private static final List<Record> records = new ArrayList<>();
 
   private enum Policy {
     /** Fastest path using SCMP traceroute */
@@ -89,22 +92,16 @@ public class EchoRepeat {
   }
 
   public static void main(String[] args) throws IOException {
+    config = Config.read("EchoRepeatConfig.json");
+
+
     // Local port must be 30041 for networks that expect a dispatcher
     EchoRepeat demo = new EchoRepeat(30041);
-    // List<ParseAssignments.HostEntry> list = ParseAssignments.getList();
-    List<ParseAssignments.HostEntry> list = DownloadAssignments.getList();
+    List<ParseAssignments.HostEntry> list = ParseAssignments.getList("EchoRepeatDestinations-short.csv");
+    //List<ParseAssignments.HostEntry> list = DownloadAssignments.getList();
     for (ParseAssignments.HostEntry e : list) {
       print(ScionUtil.toStringIA(e.getIsdAs()) + " \"" + e.getName() + "\"  ");
       demo.runDemo(e);
-      listedAs.add(e.getIsdAs());
-    }
-
-    // Try to identify ASes that occur in any paths but that are not on the public list.
-    int nSeenButNotListed = 0;
-    for (Long isdAs : seenAs) {
-      if (!listedAs.contains(isdAs)) {
-        nSeenButNotListed++;
-      }
     }
 
     // max:
@@ -124,7 +121,6 @@ public class EchoRepeat {
     println(" no path    = " + demo.nAsNoPathFound);
     println(" timeout    = " + demo.nAsTimeout);
     println(" error      = " + demo.nAsError);
-    println(" not listed = " + nSeenButNotListed);
     println("Path Stats:");
     println(" all        = " + demo.nPathTried);
     println(" success    = " + demo.nPathSuccess);
@@ -238,19 +234,15 @@ public class EchoRepeat {
     refBest.set(path);
     try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
       nPathTried++;
-      List<Scmp.TracerouteMessage> results = scmpChannel.sendTracerouteRequest(path);
-      if (results.isEmpty()) {
+      List<Scmp.TracerouteMessage> messages = scmpChannel.sendTracerouteRequest(path);
+      if (messages.isEmpty()) {
         println(" -> local AS, no timing available");
         nPathSuccess++;
         nAsSuccess++;
         return null;
       }
 
-      for (Scmp.TracerouteMessage msg : results) {
-        seenAs.add(msg.getIsdAs());
-      }
-
-      Scmp.TracerouteMessage msg = results.get(results.size() - 1);
+      Scmp.TracerouteMessage msg = messages.get(messages.size() - 1);
       if (msg.isTimedOut()) {
         nPathTimeout++;
         return msg;
@@ -270,29 +262,30 @@ public class EchoRepeat {
     try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
       for (Path path : paths) {
         nPathTried++;
-        List<Scmp.TracerouteMessage> results = scmpChannel.sendTracerouteRequest(path);
-        if (results.isEmpty()) {
-          println(" -> local AS, no timing available");
+        for (int attempt = 0; attempt < config.attemptRepeatCnt; attempt++) {
+          List<Scmp.TracerouteMessage> messages = scmpChannel.sendTracerouteRequest(path);
+          if (messages.isEmpty()) {
+            println(" -> local AS, no timing available");
+            nPathSuccess++;
+            nAsSuccess++;
+            return null;
+          }
+
+          Scmp.TracerouteMessage msg = messages.get(messages.size() - 1);
+          if (msg.isTimedOut()) {
+            nPathTimeout++;
+            return msg;
+          }
+
           nPathSuccess++;
-          nAsSuccess++;
-          return null;
-        }
 
-        for (Scmp.TracerouteMessage msg : results) {
-          seenAs.add(msg.getIsdAs());
-        }
-
-        Scmp.TracerouteMessage msg = results.get(results.size() - 1);
-        if (msg.isTimedOut()) {
-          nPathTimeout++;
-          return msg;
-        }
-
-        nPathSuccess++;
-
-        if (best == null || msg.getNanoSeconds() < best.getNanoSeconds()) {
-          best = msg;
-          refBest.set(path);
+          if (best == null || msg.getNanoSeconds() < best.getNanoSeconds()) {
+            best = msg;
+            refBest.set(path);
+          }
+          Record r = new Record(msg, path);
+          records.add(r);
+          sleep(100);
         }
       }
       return best;
@@ -337,12 +330,7 @@ public class EchoRepeat {
 
     pinger.ping(target);
     while (pinger.isPendingWork()) {
-      try {
-        Thread.sleep(500);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new RuntimeException(e);
-      }
+      sleep(500);
     }
     pinger.stopSelector();
     if (seconds.get() >= 0) {
@@ -358,21 +346,13 @@ public class EchoRepeat {
     return "ERROR";
   }
 
-  private void printPath(Path path) {
-    String nl = System.lineSeparator();
-    //    sb.append("Actual local address:").append(nl);
-    //    sb.append("
-    // ").append(channel.getLocalAddress().getAddress().getHostAddress()).append(nl);
-    String sb =
-        "Using path:"
-            + nl
-            + "  Hops: "
-            + ScionUtil.toStringPath(path.getMetadata())
-            + " MTU: "
-            + path.getMetadata().getMtu()
-            + " NextHop: "
-            + path.getMetadata().getInterface().getAddress(); // .append(nl);
-    println(sb);
+  private static void sleep(int millis) {
+    try {
+      Thread.sleep(millis);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException(e);
+    }
   }
 
   private static void print(String msg) {
@@ -461,6 +441,58 @@ public class EchoRepeat {
     }
   }
 
+  private static class Record {
+    private final long isdAs;
+    private int nHops;
+    private double pingMs;
+    private Path path;
+    private String remoteIP;
+    private String icmp;
+    private ResultState state = ResultState.NOT_DONE;
+
+    private Record(long isdAs) {
+      this.isdAs = isdAs;
+    }
+
+    Record(long isdAs, ResultState state) {
+      this(isdAs);
+      this.state = state;
+    }
+
+    public Record(Scmp.TimedMessage msg, Path request) {
+      this(request.getRemoteIsdAs());
+      if (msg == null) {
+        state = ResultState.LOCAL_AS;
+        return;
+      }
+      this.path = request;
+      nHops = PathRawParser.create(request.getRawPath()).getHopCount();
+      remoteIP = msg.getPath().getRemoteAddress().getHostAddress();
+      if (msg.isTimedOut()) {
+        state = ResultState.TIME_OUT;
+      } else {
+        pingMs = msg.getNanoSeconds() / (double) 1_000_000;
+        state = ResultState.DONE;
+      }
+    }
+
+    public long getIsdAs() {
+      return isdAs;
+    }
+
+    public void setICMP(String icmp) {
+      this.icmp = icmp;
+    }
+
+    @Override
+    public String toString() {
+      String out = ScionUtil.toStringIA(isdAs);
+      out += "   " + ScionUtil.toStringPath(path.getMetadata());
+      out += "  " + remoteIP + "  nHops=" + nHops;
+      return out + "  time=" + round(pingMs, 2) + "ms" + "  ICMP=" + icmp;
+    }
+  }
+
   private static class Ref<T> {
     public T t;
 
@@ -482,6 +514,53 @@ public class EchoRepeat {
 
     public void set(T t) {
       this.t = t;
+    }
+  }
+
+  private static class Config {
+    int attemptRepeatCnt = 5;
+    int attemptDelayMs = 100;
+    int roundRepeatCnt = 144; // 1 day
+    int roundDelaySec = 10*60; // 10 minutes
+
+    static Config read(String path) {
+      Gson gson = new Gson();
+
+      // Converts JSON file to Java object
+      try (Reader reader = new FileReader("staff.json")) {
+        // Convert JSON File to Java Object
+        return gson.fromJson(reader, Config.class);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+
+//      // Converts JSON string to Java object
+//      String json = "{'name' : 'mkyong'}";
+//      Config staff = gson.fromJson(json, Config.class);
+//
+//      // Converts JSON string to JsonElement
+//      String json = "{'name' : 'mkyong'}";
+//      JsonElement element = gson.fromJson(json, JsonElement.class);
+//
+//      // Converts JsonElement to String
+//      String result = gson.toJson(json);
+//      // Converts JsonElement to Object
+//      Config staff = gson.fromJson(element, Config.class);
+    }
+
+    void write() {
+      Gson gson = new Gson();
+
+      // Converts Java object to JSON string
+      String json = gson.toJson(this);
+      System.out.println("JSON: " + json);
+
+      // Converts Java object to File
+      try (Writer writer = new FileWriter("EchoRepeatConfig.json")) {
+        gson.toJson(this, writer);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 }

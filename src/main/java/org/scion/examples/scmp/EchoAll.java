@@ -239,7 +239,7 @@ public class EchoAll {
     refBest.set(path);
     try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
       nPathTried++;
-      List<Scmp.TracerouteMessage> results = scmpChannel.sendTracerouteRequest(path);
+      List<Scmp.TracerouteMessage> messages = scmpChannel.sendTracerouteRequest(path);
       if (results.isEmpty()) {
         println(" -> local AS, no timing available");
         nPathSuccess++;
@@ -247,11 +247,11 @@ public class EchoAll {
         return null;
       }
 
-      for (Scmp.TracerouteMessage msg : results) {
+      for (Scmp.TracerouteMessage msg : messages) {
         seenAs.add(msg.getIsdAs());
       }
 
-      Scmp.TracerouteMessage msg = results.get(results.size() - 1);
+      Scmp.TracerouteMessage msg = messages.get(messages.size() - 1);
       if (msg.isTimedOut()) {
         nPathTimeout++;
         return msg;
@@ -271,7 +271,7 @@ public class EchoAll {
     try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
       for (Path path : paths) {
         nPathTried++;
-        List<Scmp.TracerouteMessage> results = scmpChannel.sendTracerouteRequest(path);
+        List<Scmp.TracerouteMessage> messages = scmpChannel.sendTracerouteRequest(path);
         if (results.isEmpty()) {
           println(" -> local AS, no timing available");
           nPathSuccess++;
@@ -279,11 +279,11 @@ public class EchoAll {
           return null;
         }
 
-        for (Scmp.TracerouteMessage msg : results) {
+        for (Scmp.TracerouteMessage msg : messages) {
           seenAs.add(msg.getIsdAs());
         }
 
-        Scmp.TracerouteMessage msg = results.get(results.size() - 1);
+        Scmp.TracerouteMessage msg = messages.get(messages.size() - 1);
         if (msg.isTimedOut()) {
           nPathTimeout++;
           return msg;
@@ -338,12 +338,7 @@ public class EchoAll {
 
     pinger.ping(target);
     while (pinger.isPendingWork()) {
-      try {
-        Thread.sleep(500);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new RuntimeException(e);
-      }
+      sleep(500);
     }
     pinger.stopSelector();
     if (seconds.get() >= 0) {
@@ -359,21 +354,13 @@ public class EchoAll {
     return "ERROR";
   }
 
-  private void printPath(Path path) {
-    String nl = System.lineSeparator();
-    //    sb.append("Actual local address:").append(nl);
-    //    sb.append("
-    // ").append(channel.getLocalAddress().getAddress().getHostAddress()).append(nl);
-    String sb =
-        "Using path:"
-            + nl
-            + "  Hops: "
-            + ScionUtil.toStringPath(path.getMetadata())
-            + " MTU: "
-            + path.getMetadata().getMtu()
-            + " NextHop: "
-            + path.getMetadata().getInterface().getAddress(); // .append(nl);
-    println(sb);
+  private static void sleep(int millis) {
+    try {
+      Thread.sleep(millis);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException(e);
+    }
   }
 
   private static void print(String msg) {
