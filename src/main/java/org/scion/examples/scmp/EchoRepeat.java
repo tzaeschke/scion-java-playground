@@ -277,6 +277,7 @@ public class EchoRepeat {
         nPathTried++;
         Record rec = Record.startMeasurement(path);
         for (int attempt = 0; attempt < config.attemptRepeatCnt; attempt++) {
+          Instant start = Instant.now();
           List<Scmp.TracerouteMessage> messages = scmpChannel.sendTracerouteRequest(path);
           if (messages.isEmpty()) {
             println(" -> local AS, no timing available");
@@ -299,7 +300,10 @@ public class EchoRepeat {
             best = msg;
             refBest.set(path);
           }
-          sleep(config.attemptDelayMs);
+          long usedMillis = Instant.now().toEpochMilli() - start.toEpochMilli();
+          if (usedMillis < config.attemptDelayMs) {
+            sleep(config.attemptDelayMs - usedMillis);
+          }
         }
         rec.finishMeasurement();
       }
