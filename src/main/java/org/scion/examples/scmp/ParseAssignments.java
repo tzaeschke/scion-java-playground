@@ -16,13 +16,10 @@ package org.scion.examples.scmp;
 
 import org.scion.jpan.ScionRuntimeException;
 import org.scion.jpan.ScionUtil;
-import org.scion.jpan.internal.HostsFileParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -30,7 +27,7 @@ import java.util.*;
 import java.util.stream.Stream;
 
 public class ParseAssignments {
-  private static final Logger LOG = LoggerFactory.getLogger(HostsFileParser.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ParseAssignments.class);
 
   // We use hostName/addressString as key.
   private final List<HostEntry> entries = new ArrayList<>();
@@ -59,7 +56,7 @@ public class ParseAssignments {
     Path path = Paths.get(fileName);
 
     try (Stream<String> lines = Files.lines(path)) {
-      lines.forEach((line) -> parseLine(line, path));
+      lines.forEach(line -> parseLine(line, path));
     } catch (IOException e) {
       throw new ScionRuntimeException(e);
     }

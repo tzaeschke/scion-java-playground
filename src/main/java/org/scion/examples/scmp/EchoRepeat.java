@@ -25,6 +25,7 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -51,6 +52,10 @@ import org.scion.jpan.internal.PathRawParser;
  * all available paths before it can report on the best path.
  */
 public class EchoRepeat {
+  private static final String FILE_CONFIG = "EchoRepeatConfig.json";
+  private static final String FILE_INPUT = "EchoRepeatDestinations-short.csv";
+  private static final String FILE_OUTPUT = "EchoRepeatOutput.csv";
+
   private static final boolean PRINT = true;
   private final int localPort;
 
@@ -72,6 +77,7 @@ public class EchoRepeat {
   private static Config config;
   private static final List<Result> results = new ArrayList<>();
   private static final List<Record> records = new ArrayList<>();
+  private static FileWriter fileWriter;
 
   private enum Policy {
     /** Fastest path using SCMP traceroute */
@@ -84,7 +90,7 @@ public class EchoRepeat {
     SHORTEST_ECHO
   }
 
-  private static final Policy POLICY = Policy.SHORTEST_TR;
+  private static final Policy POLICY = Policy.FASTEST_TR;
   private static final boolean SHOW_PATH = true;
 
   public EchoRepeat(int localPort) {
@@ -92,17 +98,19 @@ public class EchoRepeat {
   }
 
   public static void main(String[] args) throws IOException {
-    config = Config.read("EchoRepeatConfig.json");
-
+    config = Config.read(FILE_CONFIG);
+    // Output: ISD/AS, remote IP, time, hopCount, path, [pings]
+    fileWriter = new FileWriter(FILE_OUTPUT);
 
     // Local port must be 30041 for networks that expect a dispatcher
     EchoRepeat demo = new EchoRepeat(30041);
-    List<ParseAssignments.HostEntry> list = ParseAssignments.getList("EchoRepeatDestinations-short.csv");
-    //List<ParseAssignments.HostEntry> list = DownloadAssignments.getList();
+    List<ParseAssignments.HostEntry> list = ParseAssignments.getList(FILE_INPUT);
+    // List<ParseAssignments.HostEntry> list = DownloadAssignments.getList();
     for (ParseAssignments.HostEntry e : list) {
       print(ScionUtil.toStringIA(e.getIsdAs()) + " \"" + e.getName() + "\"  ");
       demo.runDemo(e);
     }
+    fileWriter.close();
 
     // max:
     Result maxPing = results.stream().max((o1, o2) -> (int) (o1.pingMs - o2.pingMs)).get();
@@ -262,16 +270,19 @@ public class EchoRepeat {
     try (ScmpChannel scmpChannel = Scmp.createChannel(localPort)) {
       for (Path path : paths) {
         nPathTried++;
+        Record record = Record.startMeasurement(path);
         for (int attempt = 0; attempt < config.attemptRepeatCnt; attempt++) {
           List<Scmp.TracerouteMessage> messages = scmpChannel.sendTracerouteRequest(path);
           if (messages.isEmpty()) {
             println(" -> local AS, no timing available");
             nPathSuccess++;
             nAsSuccess++;
+            record.finishMeasurement();
             return null;
           }
 
           Scmp.TracerouteMessage msg = messages.get(messages.size() - 1);
+          record.registerAttempt(msg);
           if (msg.isTimedOut()) {
             nPathTimeout++;
             return msg;
@@ -283,10 +294,9 @@ public class EchoRepeat {
             best = msg;
             refBest.set(path);
           }
-          Record r = new Record(msg, path);
-          records.add(r);
-          sleep(100);
+          sleep(config.attemptDelayMs);
         }
+        record.finishMeasurement();
       }
       return best;
     } catch (IOException e) {
@@ -369,7 +379,7 @@ public class EchoRepeat {
 
   private static double round(double d, int nDigits) {
     double div = Math.pow(10, nDigits);
-    return Math.round(d*div)/div;
+    return Math.round(d * div) / div;
   }
 
   enum ResultState {
@@ -443,36 +453,48 @@ public class EchoRepeat {
 
   private static class Record {
     private final long isdAs;
-    private int nHops;
-    private double pingMs;
-    private Path path;
+    private final ArrayList<Attempt> attempts = new ArrayList<>();
+    private final Instant time;
+    private final Path path;
     private String remoteIP;
     private String icmp;
-    private ResultState state = ResultState.NOT_DONE;
 
-    private Record(long isdAs) {
-      this.isdAs = isdAs;
-    }
-
-    Record(long isdAs, ResultState state) {
-      this(isdAs);
-      this.state = state;
-    }
-
-    public Record(Scmp.TimedMessage msg, Path request) {
-      this(request.getRemoteIsdAs());
-      if (msg == null) {
-        state = ResultState.LOCAL_AS;
-        return;
-      }
+    public Record(Instant time, Path request) {
+      this.isdAs = request.getRemoteIsdAs();
+      this.time = time;
       this.path = request;
-      nHops = PathRawParser.create(request.getRawPath()).getHopCount();
-      remoteIP = msg.getPath().getRemoteAddress().getHostAddress();
-      if (msg.isTimedOut()) {
-        state = ResultState.TIME_OUT;
-      } else {
-        pingMs = msg.getNanoSeconds() / (double) 1_000_000;
-        state = ResultState.DONE;
+    }
+
+    public static Record startMeasurement(Path path) {
+      Record r = new Record(Instant.now(), path);
+      records.add(r);
+      return r;
+    }
+
+    public void registerAttempt(Scmp.TimedMessage msg) {
+      Attempt a = new Attempt(msg);
+      if (remoteIP == null && a.state != ResultState.LOCAL_AS) {
+        remoteIP = msg.getPath().getRemoteAddress().getHostAddress();
+      }
+      attempts.add(a);
+    }
+
+    public void finishMeasurement() {
+      int nHops = PathRawParser.create(path.getRawPath()).getHopCount();
+      StringBuilder out = new StringBuilder(ScionUtil.toStringIA(isdAs));
+      out.append(",").append(remoteIP);
+      out.append(",").append(time);
+      out.append(",").append(nHops);
+      out.append(",").append(ScionUtil.toStringPath(path.getRawPath()));
+      for (Attempt a : attempts) {
+        out.append(",").append(round(a.pingMs, 2));
+      }
+      out.append(System.lineSeparator());
+      try {
+        fileWriter.append(out.toString());
+        fileWriter.flush();
+      } catch (IOException e) {
+        throw new IllegalStateException(e);
       }
     }
 
@@ -486,10 +508,36 @@ public class EchoRepeat {
 
     @Override
     public String toString() {
-      String out = ScionUtil.toStringIA(isdAs);
-      out += "   " + ScionUtil.toStringPath(path.getMetadata());
-      out += "  " + remoteIP + "  nHops=" + nHops;
-      return out + "  time=" + round(pingMs, 2) + "ms" + "  ICMP=" + icmp;
+      StringBuilder out = new StringBuilder(ScionUtil.toStringIA(isdAs));
+      out.append("   ").append(ScionUtil.toStringPath(path.getMetadata()));
+      out.append("  ").append(remoteIP);
+      for (Attempt a : attempts) {
+        out.append(a);
+      }
+      return out + "  ICMP=" + icmp;
+    }
+  }
+
+  private static class Attempt {
+    private double pingMs;
+    private ResultState state = ResultState.NOT_DONE;
+
+    Attempt(Scmp.TimedMessage msg) {
+      if (msg == null) {
+        state = ResultState.LOCAL_AS;
+        return;
+      }
+      if (msg.isTimedOut()) {
+        state = ResultState.TIME_OUT;
+      } else {
+        pingMs = msg.getNanoSeconds() / (double) 1_000_000;
+        state = ResultState.DONE;
+      }
+    }
+
+    @Override
+    public String toString() {
+      return "  time=" + round(pingMs, 2) + "ms";
     }
   }
 
@@ -521,42 +569,27 @@ public class EchoRepeat {
     int attemptRepeatCnt = 5;
     int attemptDelayMs = 100;
     int roundRepeatCnt = 144; // 1 day
-    int roundDelaySec = 10*60; // 10 minutes
+    int roundDelaySec = 10 * 60; // 10 minutes
 
     static Config read(String path) {
       Gson gson = new Gson();
 
       // Converts JSON file to Java object
-      try (Reader reader = new FileReader("staff.json")) {
+      try (Reader reader = new FileReader(path)) {
         // Convert JSON File to Java Object
         return gson.fromJson(reader, Config.class);
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
-
-//      // Converts JSON string to Java object
-//      String json = "{'name' : 'mkyong'}";
-//      Config staff = gson.fromJson(json, Config.class);
-//
-//      // Converts JSON string to JsonElement
-//      String json = "{'name' : 'mkyong'}";
-//      JsonElement element = gson.fromJson(json, JsonElement.class);
-//
-//      // Converts JsonElement to String
-//      String result = gson.toJson(json);
-//      // Converts JsonElement to Object
-//      Config staff = gson.fromJson(element, Config.class);
     }
 
-    void write() {
+    void write(String path) {
       Gson gson = new Gson();
+      //      // Converts Java object to JSON string
+      //      String json = gson.toJson(this);
+      //      System.out.println("JSON: " + json);
 
-      // Converts Java object to JSON string
-      String json = gson.toJson(this);
-      System.out.println("JSON: " + json);
-
-      // Converts Java object to File
-      try (Writer writer = new FileWriter("EchoRepeatConfig.json")) {
+      try (Writer writer = new FileWriter(path)) {
         gson.toJson(this, writer);
       } catch (IOException e) {
         throw new RuntimeException(e);
