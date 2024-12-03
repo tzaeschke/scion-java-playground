@@ -43,9 +43,7 @@ import net.luminis.quic.core.Version;
 import net.luminis.quic.log.Logger;
 import net.luminis.quic.log.SysOutLogger;
 import net.luminis.tls.TlsConstants;
-import org.scion.jpan.Constants;
-import org.scion.jpan.Scion;
-import org.scion.jpan.ScionException;
+import org.scion.jpan.*;
 
 import static net.luminis.http3.core.Http3ClientConnection.DEFAULT_HTTP3_PORT;
 
@@ -184,13 +182,11 @@ public class Sample {
 
     @Override
     public QuicClientConnectionImpl build() throws SocketException, UnknownHostException {
-        super.socketFactory(
-                ignored ->
-                        new org.scion.jpan.socket.DatagramSocket(30041).setRemoteDispatcher(true));
+      super.socketFactory(ignored -> new ScionDatagramSocket(30041).setRemoteDispatcher(true));
         super.addressResolver(hostName -> {
           System.out.println("STUB: ProxySelector.select()");
           try {
-            InetAddress address = Scion.defaultService().getScionAddress(hostName).getInetAddress();
+            InetAddress address = Scion.defaultService().lookupAndGetPath(hostName, 12345, PathPolicy.DEFAULT).getRemoteAddress();
             System.out.println("STUB: ProxySelector.select() - 2 " + address);
             return address;
           } catch (ScionException e) {

@@ -30,8 +30,7 @@ import net.luminis.quic.server.ApplicationProtocolConnection;
 import net.luminis.quic.server.ApplicationProtocolConnectionFactory;
 import net.luminis.quic.server.ServerConnectionConfig;
 import net.luminis.quic.server.ServerConnector;
-import org.scion.jpan.Constants;
-import org.scion.jpan.socket.DatagramSocket;
+import org.scion.jpan.ScionDatagramSocket;
 
 /**
  * A sample server that runs a very simple echo protocol on top of QUIC.
@@ -79,7 +78,7 @@ public class EchoServer {
                 .withCertificate(new FileInputStream(args[0]), new FileInputStream(args[1]))
                 .withConfiguration(serverConnectionConfig)
                 .withLogger(log)
-                .withSocket(new DatagramSocket(port))
+                .withSocket(new ScionDatagramSocket(port))
                 .build();
 
         registerProtocolHandler(serverConnector, log);

@@ -25,7 +25,7 @@ import net.luminis.quic.QuicClientConnection;
 import net.luminis.quic.QuicStream;
 import net.luminis.quic.log.SysOutLogger;
 import org.scion.jpan.Constants;
-import org.scion.jpan.socket.DatagramSocket;
+import org.scion.jpan.ScionDatagramSocket;
 
 /**
  * A sample echo client that runs a very simple echo protocol on top of QUIC.
@@ -73,7 +73,7 @@ public class SimpleEchoClient {
                 .applicationProtocol("echo")
                 .logger(log)
                 .noServerCertificateCheck()
-                .socketFactory(ignored -> new DatagramSocket())
+                .socketFactory(ignored -> new ScionDatagramSocket())
                 .build();
 
         connection.connect();

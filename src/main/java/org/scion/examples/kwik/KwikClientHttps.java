@@ -31,8 +31,9 @@ import net.luminis.quic.log.Logger;
 import net.luminis.quic.log.SysOutLogger;
 import net.luminis.quic.run.KwikCli;
 import net.luminis.quic.run.KwikVersion;
+import org.scion.jpan.PathPolicy;
 import org.scion.jpan.Scion;
-import org.scion.jpan.socket.DatagramSocket;
+import org.scion.jpan.ScionDatagramSocket;
 import org.scion.jpan.ScionException;
 
 import javax.net.SocketFactory;
@@ -141,13 +142,13 @@ public class KwikClientHttps {
 
     @Override
     public QuicClientConnectionImpl build() throws SocketException, UnknownHostException {
-      super.socketFactory(ignored -> new DatagramSocket(30041).setRemoteDispatcher(true));
+      super.socketFactory(ignored -> new ScionDatagramSocket(30041).setRemoteDispatcher(true));
       super.addressResolver(
           hostName -> {
             System.out.println("STUB: ProxySelector.select()");
             try {
               InetAddress address =
-                  Scion.defaultService().getScionAddress(hostName).getInetAddress();
+                  Scion.defaultService().lookupAndGetPath(hostName, 12345, PathPolicy.DEFAULT).getRemoteAddress();
               System.out.println("STUB: ProxySelector.select() - 2 " + address);
               return address;
             } catch (ScionException e) {
